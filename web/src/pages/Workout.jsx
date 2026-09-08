@@ -36,7 +36,7 @@ export default function Workout({ state, reload }) {
 
   const sorted = [...workouts].sort((a, b) => String(b.date).localeCompare(String(a.date)) || b.id - a.id);
   return (
-    <>
+    <div className="cols2">
       <div className="card">
         <div className="row between">
           <h2>Новая тренировка</h2>
@@ -76,7 +76,7 @@ export default function Workout({ state, reload }) {
           </div>
         ))}
       </div>
-    </>
+    </div>
   );
 }
 
@@ -111,6 +111,7 @@ function Editor({ w, setW, program, suggestions, onClose, reload, toast }) {
         </div>
       </div>
 
+      <div className="ex-grid">
       {w.exercises.map((ex, i) => {
         const it = itemById[ex.program_id] || items.find((p) => p.name === ex.name);
         const s = suggestions[ex.program_id];
@@ -152,6 +153,7 @@ function Editor({ w, setW, program, suggestions, onClose, reload, toast }) {
           </div>
         );
       })}
+      </div>
 
       <div className="card">
         <h3>Боль в колене после тренировки (0–10) <span className="bad">*</span></h3>

@@ -95,3 +95,37 @@ pre.md { white-space: pre-wrap; font-family: var(--font); font-size: .9rem; line
 .hr { height: 1px; background: var(--line); margin: 10px 0; }
 .drag { cursor: grab; color: var(--muted); padding: 0 4px; user-select: none; }
 @media (min-width: 720px) { .set-row { grid-template-columns: 32px 1fr 22px 1fr 44px; } }
+
+/* ---------- desktop ---------- */
+.nav .nav-brand, .nav .nav-user { display: none; }
+.cols2 > .card, .days > .card, .ex-grid > .card { min-width: 0; }
+@media (min-width: 900px) {
+  body { font-size: 15px; }
+  .shell { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 100dvh; }
+  .nav { position: sticky; top: 0; height: 100dvh; flex-direction: column; justify-content: flex-start; align-items: stretch; gap: 4px; padding: 20px 14px; border-top: 0; border-right: 1px solid var(--line); background: var(--card); backdrop-filter: none; }
+  .nav .nav-brand { display: block; font-size: 1.4rem; padding: 4px 10px 18px; }
+  .nav .nav-user { display: block; margin-top: auto; padding: 10px; }
+  .nav button { flex: 0 0 auto; flex-direction: row; gap: 10px; font-size: .95rem; padding: 10px 12px; text-align: left; justify-content: flex-start; }
+  .nav button:hover { background: var(--card2); color: var(--text); }
+  .nav button.active { background: var(--accent-dim); }
+  .nav button .ic { font-size: 1.1rem; width: 24px; text-align: center; }
+  .nav .badge { position: static; margin: 0 0 0 auto; }
+  .app { max-width: 1180px; width: 100%; padding: 24px 32px 40px; }
+  .topbar { display: none; }
+  .cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+  .cols2 > * { margin-bottom: 0; }
+  .cols2 > .span2 { grid-column: 1 / -1; }
+  .cols2 > .col { display: flex; flex-direction: column; gap: 16px; }
+  .cols2 > .col > .card { margin-bottom: 0; }
+  .days { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; align-items: start; }
+  .days > .card { margin-bottom: 0; }
+  .ex-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+  .ex-grid > .card { margin-bottom: 0; }
+  .page > .card + .card, .ex-grid + .card, .days + .card, .cols2 + .card { margin-top: 16px; }
+  .toast { bottom: 24px; }
+  .pain button { padding: 10px 0; }
+  .set-row { grid-template-columns: 32px 1fr 22px 1fr 44px; max-width: 420px; }
+  .btn-block { max-width: 100%; }
+  .auth { margin-top: 12vh; }
+}
+@media (min-width: 1300px) { .ex-grid { grid-template-columns: repeat(3, 1fr); } }

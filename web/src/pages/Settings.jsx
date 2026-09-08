@@ -32,7 +32,7 @@ export default function Settings({ state, reload, onLogout }) {
   }
 
   return (
-    <>
+    <div className="cols2 settings">
       <div className="card stack">
         <h2>Профиль</h2>
         {!profile.onboarded && <p className="small accent">Заполни профиль: рост, вес, цель и ограничения. Это видит тренер при разборе.</p>}
@@ -56,6 +56,7 @@ export default function Settings({ state, reload, onLogout }) {
         <button className="btn-primary btn-block" onClick={saveProfile}>Сохранить профиль</button>
       </div>
 
+      <div className="col">
       <div className="card stack">
         <h2>Аккаунт · {user.login} {user.is_admin && <span className="chip accent">админ</span>}</h2>
         <div className="row"><Field label="Email для восстановления"><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Field><button style={{ alignSelf: 'flex-end' }} onClick={saveEmail}>Сохранить</button></div>
@@ -85,7 +86,8 @@ export default function Settings({ state, reload, onLogout }) {
         {ver?.error && <div className="tiny">Проверка обновлений: {ver.error}</div>}
         <div className="tiny" style={{ marginTop: 4 }}><a href={`https://github.com/${ver?.repo || 'alexbelens/training'}`} target="_blank" rel="noreferrer">github.com/{ver?.repo || 'alexbelens/training'}</a></div>
       </div>
-    </>
+      </div>
+    </div>
   );
 }
 

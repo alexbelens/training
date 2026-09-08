@@ -35,6 +35,7 @@ export default function Program({ state, reload }) {
           <div className="row between"><h2>Редактирование программы</h2><button className="btn-sm btn-ghost" onClick={() => setEdit(null)}>Отмена</button></div>
           <Field label="Схема / примечания"><textarea value={edit.schema || ''} onChange={(e) => setEdit({ ...edit, schema: e.target.value })} /></Field>
         </div>
+        <div className="days">
         {days.map((d) => (
           <div key={d} className="card">
             <h2>День {d}</h2>
@@ -71,6 +72,7 @@ export default function Program({ state, reload }) {
             <button className="btn-sm" onClick={() => add(d)}>+ упражнение</button>
           </div>
         ))}
+        </div>
         <div className="card stack">
           <Field label="Что и почему изменил (попадёт в историю версий)"><input value={rationale} onChange={(e) => setRationale(e.target.value)} /></Field>
           {validateProgram(edit, profile).map((e, i) => <div key={i} className="err">{e}</div>)}
@@ -90,6 +92,7 @@ export default function Program({ state, reload }) {
         <p className="small muted">{program.schema}</p>
         <div className="tiny muted">{program.author === 'coach' ? 'изменено тренером' : program.author === 'system' ? 'стартовая' : 'изменено тобой'} · {fmtDate(program.created_at)}{program.rationale ? ` · ${program.rationale}` : ''}</div>
       </div>
+      <div className="days">
       {Object.entries(program.days).map(([d, items]) => (
         <div key={d} className="card">
           <h2>День {d}</h2>
@@ -106,6 +109,7 @@ export default function Program({ state, reload }) {
           ))}
         </div>
       ))}
+      </div>
       <div className="card">
         {!history ? <button className="btn-sm btn-ghost" onClick={loadHistory}>История версий</button> : (
           <>

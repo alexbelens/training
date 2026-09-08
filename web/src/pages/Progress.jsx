@@ -22,7 +22,7 @@ export default function Progress({ state, reload }) {
   const start = profile.start_weight_kg || weights[0]?.kg;
 
   return (
-    <>
+    <div className="cols2">
       <div className="card">
         <div className="row between"><h2>Вес тела</h2>{lastW && <span className="chip accent">{lastW.kg} кг{start ? ` · ${(lastW.kg - start > 0 ? '+' : '')}${(lastW.kg - start).toFixed(1)}` : ''}</span>}</div>
         <LineChart points={weights.map((w) => ({ x: fmtDate(w.date), y: w.kg }))} target={profile.target_weight_kg || null} unit="кг" />
@@ -53,12 +53,12 @@ export default function Progress({ state, reload }) {
       </div>
 
       {weights.length > 0 && (
-        <details className="card"><summary>Все взвешивания</summary>
+        <details className="card span2"><summary>Все взвешивания</summary>
           {[...weights].reverse().map((w) => (
             <div key={w.date} className="list-item small"><span>{fmtDate(w.date)}</span><span>{w.kg} кг</span><button className="btn-sm btn-ghost" onClick={async () => { await api.del(`/api/weights/${w.date}`); await reload(); }}>✕</button></div>
           ))}
         </details>
       )}
-    </>
+    </div>
   );
 }

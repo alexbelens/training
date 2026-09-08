@@ -49,6 +49,17 @@ export default function App() {
 
   return (
     <ToastProvider>
+      <div className="shell">
+      <nav className="nav">
+        <div className="nav-brand brand">Training</div>
+        {TABS.map((t) => (
+          <button key={t.id} className={tab === t.id ? 'active' : ''} onClick={() => { setTab(t.id); window.scrollTo(0, 0); }}>
+            <span className="ic">{t.ic}</span><span className="lbl">{t.label}</span>
+            {t.id === 'coach' && unread > 0 && <span className="badge">{unread}</span>}
+          </button>
+        ))}
+        <div className="nav-user small muted">{state.profile.name || state.user.login}</div>
+      </nav>
       <div className="app">
         <div className="topbar">
           <span className="brand">Training</span>
@@ -58,16 +69,9 @@ export default function App() {
         {!state.profile.onboarded && tab !== 'settings' && (
           <div className="banner info"><span className="small">Заполни профиль, чтобы тренер знал твои ограничения.</span><button className="btn-sm" onClick={() => setTab('settings')}>Профиль</button></div>
         )}
-        <Page state={state} reload={reload} onLogout={logout} />
+        <main className={'page page-' + tab}><Page state={state} reload={reload} onLogout={logout} /></main>
       </div>
-      <nav className="nav">
-        {TABS.map((t) => (
-          <button key={t.id} className={tab === t.id ? 'active' : ''} onClick={() => { setTab(t.id); window.scrollTo(0, 0); }}>
-            <span className="ic">{t.ic}</span>{t.label}
-            {t.id === 'coach' && unread > 0 && <span className="badge">{unread}</span>}
-          </button>
-        ))}
-      </nav>
+      </div>
     </ToastProvider>
   );
 }

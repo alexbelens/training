@@ -12,3 +12,14 @@ services:
       - TZ=${TZ:-Europe/Kyiv}
     volumes:
       - ./data:/data
+
+  # Публичный доступ через Cloudflare Tunnel + Cloudflare Access.
+  # Включается профилем: TUNNEL_TOKEN=... в .env и `docker compose --profile tunnel up -d`
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: training-tunnel
+    restart: unless-stopped
+    profiles: ["tunnel"]
+    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
+    depends_on:
+      - training

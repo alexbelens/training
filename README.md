@@ -46,6 +46,13 @@ COACH_SSH=myhost ./scripts/coach.sh report 1 report.json
 
 Инструкция для Claude — в `.claude/skills/coach/SKILL.md`. Открой репозиторий в Claude Code и попроси: «тренер, разбери мои тренировки».
 
+## Доступ из интернета (Cloudflare Tunnel + Access)
+
+1. Zero Trust → Networks → Tunnels → Create tunnel (Cloudflared). Скопируй токен в `.env` как `TUNNEL_TOKEN`.
+2. Public hostname: `training.твой-домен` → Service `http://training:8080`.
+3. Zero Trust → Access → Applications → Self-hosted: тот же hostname, политика Allow по email-ам друзей (One-time PIN). Это вторая дверь поверх логина приложения.
+4. В `.env`: `PUBLIC_URL=https://training.твой-домен`, `SECURE_COOKIE=1`. Затем `./update.sh` (он сам включит профиль `tunnel`).
+
 ## Восстановление пароля
 
 Если в `.env` задан `SMTP_URL`, ссылка уходит на email. Если нет — заявка появляется у администратора в настройках, он копирует ссылку и передаёт лично.
