@@ -9,14 +9,14 @@ description: Персональный тренер тренажёрного за
 
 ## Как добраться до данных
 
-Сервис задеплоен на хосте `budget` (ssh-алиас, каталог `/root/training`). Все команды — через `scripts/coach.sh` из репо:
+Сервис задеплоен на хосте `training` (ssh-алиас, бывший budget, каталог `/root/training`). Все команды — через `scripts/coach.sh` из репо:
 
 ```bash
-COACH_SSH=budget ./scripts/coach.sh users              # кто есть, открытые запросы, последняя тренировка
-COACH_SSH=budget ./scripts/coach.sh export 1            # полный JSON пользователя id=1
-COACH_SSH=budget ./scripts/coach.sh suggest 1 A         # что предложат правила прогрессии на день A
-COACH_SSH=budget ./scripts/coach.sh report 1 report.json
-COACH_SSH=budget ./scripts/coach.sh program 1 program.json
+COACH_SSH=training ./scripts/coach.sh users              # кто есть, открытые запросы, последняя тренировка
+COACH_SSH=training ./scripts/coach.sh export 1            # полный JSON пользователя id=1
+COACH_SSH=training ./scripts/coach.sh suggest 1 A         # что предложат правила прогрессии на день A
+COACH_SSH=training ./scripts/coach.sh report 1 report.json
+COACH_SSH=training ./scripts/coach.sh program 1 program.json
 ```
 
 Если ssh-алиас недоступен — спроси, где сервис, или используй `COACH_BASE=http://host:port COACH_TOKEN=... ./scripts/coach.sh ...`.
