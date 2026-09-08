@@ -32,7 +32,7 @@ export default function Auth({ info, onAuthed, mode, setMode, resetToken }) {
       <form className="card stack" onSubmit={submit}>
         {mode === 'login' && <>
           <h2>Вход</h2>
-          <Field label="Логин или email"><input autoFocus autoCapitalize="none" value={f.login} onChange={set('login')} /></Field>
+          <Field label="Логин или email"><input autoFocus autoCapitalize="none" autoComplete="username" value={f.login} onChange={set('login')} /></Field>
           <Field label="Пароль"><input type="password" autoComplete="current-password" value={f.password} onChange={set('password')} /></Field>
           {err && <div className="err">{err}</div>}
           <button className="btn-primary btn-block" disabled={busy}>Войти</button>
@@ -44,10 +44,10 @@ export default function Auth({ info, onAuthed, mode, setMode, resetToken }) {
         {mode === 'register' && <>
           <h2>{firstUser ? 'Первый пользователь' : 'Регистрация'}</h2>
           {firstUser && <p className="small muted">Первый аккаунт становится администратором.</p>}
-          <Field label="Логин (латиница, 3–32)"><input autoFocus autoCapitalize="none" value={f.login} onChange={set('login')} /></Field>
+          <Field label="Логин (латиница, 3–32)"><input autoFocus autoCapitalize="none" autoComplete="username" value={f.login} onChange={set('login')} /></Field>
           <Field label="Email (для восстановления пароля, необязательно)"><input type="email" value={f.email} onChange={set('email')} /></Field>
-          <Field label="Пароль (минимум 8)"><input type="password" value={f.password} onChange={set('password')} /></Field>
-          <Field label="Пароль ещё раз"><input type="password" value={f.password2} onChange={set('password2')} /></Field>
+          <Field label="Пароль (минимум 8)"><input type="password" autoComplete="new-password" value={f.password} onChange={set('password')} /></Field>
+          <Field label="Пароль ещё раз"><input type="password" autoComplete="new-password" value={f.password2} onChange={set('password2')} /></Field>
           {info?.invite_required && !firstUser && <Field label="Код приглашения"><input value={f.invite} onChange={set('invite')} /></Field>}
           {err && <div className="err">{err}</div>}
           <button className="btn-primary btn-block" disabled={busy}>Создать аккаунт</button>
@@ -64,8 +64,8 @@ export default function Auth({ info, onAuthed, mode, setMode, resetToken }) {
         </>}
         {mode === 'reset' && <>
           <h2>Новый пароль</h2>
-          <Field label="Пароль (минимум 8)"><input autoFocus type="password" value={f.password} onChange={set('password')} /></Field>
-          <Field label="Пароль ещё раз"><input type="password" value={f.password2} onChange={set('password2')} /></Field>
+          <Field label="Пароль (минимум 8)"><input autoFocus type="password" autoComplete="new-password" value={f.password} onChange={set('password')} /></Field>
+          <Field label="Пароль ещё раз"><input type="password" autoComplete="new-password" value={f.password2} onChange={set('password2')} /></Field>
           {err && <div className="err">{err}</div>}
           <button className="btn-primary btn-block" disabled={busy}>Сохранить и войти</button>
         </>}

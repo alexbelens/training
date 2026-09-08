@@ -7,7 +7,9 @@ export default function Settings({ state, reload, onLogout }) {
   const { profile, user, version } = state;
   const [p, setP] = useState(profile);
   const [forbidden, setForbidden] = useState((profile.forbidden || []).join('\n'));
-  const [pw, setPw] = useState({ current: '', password: '' });
+  const [pw, setPw] = useState({ current: '', password: '', repeat: '' });
+  const [showPw, setShowPw] = useState(false);
+  const [pwErr, setPwErr] = useState('');
   const [email, setEmail] = useState(user.email || '');
   const [ver, setVer] = useState(null);
   const fileRef = useRef();
@@ -21,7 +23,13 @@ export default function Settings({ state, reload, onLogout }) {
     toast('Профиль сохранён'); await reload();
   }
   async function changePw() {
-    try { await api.post('/api/password/change', pw); toast('Пароль изменён'); setPw({ current: '', password: '' }); } catch (e) { toast(e.message); }
+    setPwErr('');
+    if (pw.password !== pw.repeat) { setPwErr('Пароли не совпадают'); return; }
+    try {
+      await api.post('/api/password/change', { current: pw.current, password: pw.password });
+      toast('Пароль изменён, вход обновлён');
+      setPw({ current: '', password: '', repeat: '' });
+    } catch (e) { setPwErr(e.message); toast(e.message); }
   }
   async function saveEmail() { try { await api.put('/api/account', { email }); toast('Email сохранён'); await reload(); } catch (e) { toast(e.message); } }
   async function importFile(e) {
@@ -60,11 +68,26 @@ export default function Settings({ state, reload, onLogout }) {
       <div className="card stack">
         <h2>Аккаунт · {user.login} {user.is_admin && <span className="chip accent">админ</span>}</h2>
         <div className="row"><Field label="Email для восстановления"><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Field><button style={{ alignSelf: 'flex-end' }} onClick={saveEmail}>Сохранить</button></div>
-        <div className="row">
-          <Field label="Текущий пароль"><input type="password" value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} /></Field>
-          <Field label="Новый пароль"><input type="password" value={pw.password} onChange={(e) => setPw({ ...pw, password: e.target.value })} /></Field>
-          <button style={{ alignSelf: 'flex-end' }} onClick={changePw}>Сменить</button>
-        </div>
+        <form className="stack" onSubmit={(e) => { e.preventDefault(); changePw(); }}>
+          <input type="text" name="username" autoComplete="username" value={user.login} readOnly hidden />
+          <Field label="Текущий пароль">
+            <input type="password" autoComplete="current-password" value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} />
+          </Field>
+          <div className="row">
+            <Field label="Новый пароль (минимум 8)">
+              <input type={showPw ? 'text' : 'password'} autoComplete="new-password" value={pw.password} onChange={(e) => setPw({ ...pw, password: e.target.value })} />
+            </Field>
+            <Field label="Ещё раз">
+              <input type={showPw ? 'text' : 'password'} autoComplete="new-password" value={pw.repeat} onChange={(e) => setPw({ ...pw, repeat: e.target.value })} />
+            </Field>
+          </div>
+          <div className="row between">
+            <label className="check tiny"><input type="checkbox" checked={showPw} onChange={(e) => setShowPw(e.target.checked)} />показать пароль</label>
+            <button className="btn-sm" disabled={!pw.current || pw.password.length < 8 || pw.password !== pw.repeat}>Сменить пароль</button>
+          </div>
+          {pw.password && pw.repeat && pw.password !== pw.repeat && <div className="err tiny">Пароли не совпадают</div>}
+          {pwErr && <div className="err tiny">{pwErr}</div>}
+        </form>
         <button className="btn-ghost" onClick={onLogout}>Выйти</button>
       </div>
 

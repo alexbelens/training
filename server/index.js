@@ -128,6 +128,7 @@ api.post('/password/reset', (req, res) => {
   if (!validPassword(password)) return res.status(400).json({ error: 'Пароль: минимум 8 символов' });
   const user = store.consumeResetToken(token, password);
   if (!user) return res.status(400).json({ error: 'Ссылка недействительна или устарела' });
+  log(`password reset: ${user.login}`);
   store.setSetting('pending_resets', store.getSetting('pending_resets', []).filter((x) => x.user_id !== user.id));
   setSessionCookie(req, res, store.createSession(user.id, req.get('user-agent')));
   res.json({ user });
@@ -143,6 +144,7 @@ api.post('/password/change', (req, res) => {
   if (!validPassword(password)) return res.status(400).json({ error: 'Пароль: минимум 8 символов' });
   store.setPassword(req.user.id, password);
   setSessionCookie(req, res, store.createSession(req.user.id, req.get('user-agent')));
+  log(`password changed: ${req.user.login}`);
   res.json({ ok: true });
 });
 api.put('/account', (req, res) => {
