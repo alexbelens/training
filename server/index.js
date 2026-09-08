@@ -15,7 +15,8 @@ const PORT = Number(process.env.PORT || 8080);
 const COACH_TOKEN = process.env.COACH_TOKEN || '';
 const INVITE_CODE = process.env.INVITE_CODE || '';
 const PUBLIC_URL = (process.env.PUBLIC_URL || '').replace(/\/$/, '');
-const SECURE_COOKIE = process.env.SECURE_COOKIE === '1';
+// '1' — всегда Secure, '0' — никогда, иначе автоматически: Secure только для https-запросов
+const SECURE_COOKIE = process.env.SECURE_COOKIE || 'auto';
 const log = (...a) => console.log(new Date().toISOString(), ...a);
 
 if (process.env.DISABLE_BACKUPS !== '1') scheduleBackups(log);
@@ -31,7 +32,11 @@ const cookies = (req) => Object.fromEntries((req.headers.cookie || '').split(';'
 const bearer = (req) => (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
 const safeEq = (a, b) => { const A = Buffer.from(String(a)), B = Buffer.from(String(b)); return A.length === B.length && crypto.timingSafeEqual(A, B); };
 const isCoach = (req) => !!COACH_TOKEN && bearer(req).length > 0 && safeEq(bearer(req), COACH_TOKEN);
-const setSessionCookie = (res, token) => res.setHeader('Set-Cookie', `session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${365 * 86400}${SECURE_COOKIE ? '; Secure' : ''}`);
+const isHttps = (req) => req.secure || (req.get('x-forwarded-proto') || '').split(',')[0].trim() === 'https';
+const setSessionCookie = (req, res, token) => {
+  const secure = SECURE_COOKIE === '1' || (SECURE_COOKIE !== '0' && isHttps(req));
+  res.setHeader('Set-Cookie', `session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${365 * 86400}${secure ? '; Secure' : ''}`);
+};
 const clearSessionCookie = (res) => res.setHeader('Set-Cookie', 'session=; Path=/; HttpOnly; Max-Age=0');
 const baseUrl = (req) => PUBLIC_URL || `${req.protocol}://${req.get('host')}`;
 const registrationOpen = () => store.getSetting('registration_open', true) !== false;
@@ -84,7 +89,7 @@ api.post('/register', (req, res) => {
   if (!validEmail(email)) return res.status(400).json({ error: 'Некорректный email' });
   if (store.findUserByLogin(login) || (email && store.findUserByLogin(email))) return res.status(409).json({ error: 'Такой логин или email уже занят' });
   const user = store.createUser({ login, email: email || null, password });
-  setSessionCookie(res, store.createSession(user.id, req.get('user-agent')));
+  setSessionCookie(req, res, store.createSession(user.id, req.get('user-agent')));
   log(`register ${user.login}${user.is_admin ? ' (admin)' : ''}`);
   res.json({ user });
 });
@@ -95,7 +100,7 @@ api.post('/login', (req, res) => {
   if (tooMany(key)) return res.status(429).json({ error: 'Слишком много попыток, подожди 15 минут' });
   const row = store.findUserByLogin(String(login || ''));
   if (!row || !store.verifyPassword(password || '', row.password_hash)) { noteAttempt(key); return res.status(401).json({ error: 'Неверный логин или пароль' }); }
-  setSessionCookie(res, store.createSession(row.id, req.get('user-agent')));
+  setSessionCookie(req, res, store.createSession(row.id, req.get('user-agent')));
   res.json({ user: store.getUser(row.id) });
 });
 
@@ -124,7 +129,7 @@ api.post('/password/reset', (req, res) => {
   const user = store.consumeResetToken(token, password);
   if (!user) return res.status(400).json({ error: 'Ссылка недействительна или устарела' });
   store.setSetting('pending_resets', store.getSetting('pending_resets', []).filter((x) => x.user_id !== user.id));
-  setSessionCookie(res, store.createSession(user.id, req.get('user-agent')));
+  setSessionCookie(req, res, store.createSession(user.id, req.get('user-agent')));
   res.json({ user });
 });
 
@@ -137,7 +142,7 @@ api.post('/password/change', (req, res) => {
   if (!req.coach && !store.verifyPassword(current || '', row.password_hash)) return res.status(400).json({ error: 'Текущий пароль неверен' });
   if (!validPassword(password)) return res.status(400).json({ error: 'Пароль: минимум 8 символов' });
   store.setPassword(req.user.id, password);
-  setSessionCookie(res, store.createSession(req.user.id, req.get('user-agent')));
+  setSessionCookie(req, res, store.createSession(req.user.id, req.get('user-agent')));
   res.json({ ok: true });
 });
 api.put('/account', (req, res) => {
