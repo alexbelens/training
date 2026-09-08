@@ -1,0 +1,13 @@
+services:
+  training:
+    image: ghcr.io/alexbelens/training:${TRAINING_VERSION:-latest}
+    build: .
+    container_name: training
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8080}:8080"
+    env_file: .env
+    environment:
+      - TZ=${TZ:-Europe/Kyiv}
+    volumes:
+      - ./data:/data

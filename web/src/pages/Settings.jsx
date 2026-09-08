@@ -1,0 +1,124 @@
+import React, { useEffect, useRef, useState } from 'react';
+import { api } from '../api.js';
+import { Field, Confirm, fmtDate, useToast } from '../components/ui.jsx';
+
+export default function Settings({ state, reload, onLogout }) {
+  const toast = useToast();
+  const { profile, user, version } = state;
+  const [p, setP] = useState(profile);
+  const [forbidden, setForbidden] = useState((profile.forbidden || []).join('\n'));
+  const [pw, setPw] = useState({ current: '', password: '' });
+  const [email, setEmail] = useState(user.email || '');
+  const [ver, setVer] = useState(null);
+  const fileRef = useRef();
+  useEffect(() => { api.get('/api/version').then(setVer).catch(() => {}); }, []);
+
+  const set = (k) => (e) => setP({ ...p, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
+  const num = (k) => (e) => setP({ ...p, [k]: e.target.value === '' ? null : Number(e.target.value) });
+
+  async function saveProfile() {
+    await api.put('/api/profile', { ...p, forbidden: forbidden.split('\n').map((s) => s.trim()).filter(Boolean), onboarded: true });
+    toast('Профиль сохранён'); await reload();
+  }
+  async function changePw() {
+    try { await api.post('/api/password/change', pw); toast('Пароль изменён'); setPw({ current: '', password: '' }); } catch (e) { toast(e.message); }
+  }
+  async function saveEmail() { try { await api.put('/api/account', { email }); toast('Email сохранён'); await reload(); } catch (e) { toast(e.message); } }
+  async function importFile(e) {
+    const f = e.target.files?.[0]; if (!f) return;
+    try { const data = JSON.parse(await f.text()); await api.post('/api/import', data); toast('Импорт выполнен'); await reload(); }
+    catch (err) { toast('Ошибка импорта: ' + err.message); }
+    e.target.value = '';
+  }
+
+  return (
+    <>
+      <div className="card stack">
+        <h2>Профиль</h2>
+        {!profile.onboarded && <p className="small accent">Заполни профиль: рост, вес, цель и ограничения. Это видит тренер при разборе.</p>}
+        <Field label="Как к тебе обращаться"><input value={p.name || ''} onChange={set('name')} /></Field>
+        <div className="row">
+          <Field label="Рост, см"><input type="number" inputMode="numeric" value={p.height_cm ?? ''} onChange={num('height_cm')} /></Field>
+          <Field label="Старт. вес"><input type="number" inputMode="decimal" step="0.1" value={p.start_weight_kg ?? ''} onChange={num('start_weight_kg')} /></Field>
+          <Field label="Цель, кг"><input type="number" inputMode="decimal" step="0.1" value={p.target_weight_kg ?? ''} onChange={num('target_weight_kg')} /></Field>
+        </div>
+        <div className="row">
+          <Field label="Начало тренировок"><input type="date" value={p.started_at || ''} onChange={set('started_at')} /></Field>
+          <Field label="Зал / оборудование"><input value={p.gym_equipment || ''} onChange={set('gym_equipment')} placeholder="Matrix" /></Field>
+        </div>
+        <Field label="Цели"><textarea value={p.goals || ''} onChange={set('goals')} placeholder="снижение веса, форма, укрепить колено…" /></Field>
+        <Field label="Здоровье / травмы (что должен знать тренер)"><textarea value={p.knee || ''} onChange={set('knee')} placeholder="колено: нестабильность надколенника, МРТ не сделано…" /></Field>
+        <Field label="Ограничения и правила"><textarea value={p.restrictions || ''} onChange={set('restrictions')} placeholder="разгибание ног — только верхняя треть амплитуды…" /></Field>
+        <Field label="Чего не предлагать (отказался)"><textarea value={p.refused || ''} onChange={set('refused')} placeholder="hip thrust, скручивания…" /></Field>
+        <Field label="Запрещённые упражнения — по одному в строке (валидатор не даст добавить их в программу)"><textarea value={forbidden} onChange={(e) => setForbidden(e.target.value)} /></Field>
+        <label className="check"><input type="checkbox" checked={!!p.adaptation_period} onChange={set('adaptation_period')} />Адаптационный период (2 рабочих подхода вместо 3)</label>
+        <label className="check"><input type="checkbox" checked={!!p.doctor_reminder} onChange={set('doctor_reminder')} />Напоминать про врача / МРТ</label>
+        <button className="btn-primary btn-block" onClick={saveProfile}>Сохранить профиль</button>
+      </div>
+
+      <div className="card stack">
+        <h2>Аккаунт · {user.login} {user.is_admin && <span className="chip accent">админ</span>}</h2>
+        <div className="row"><Field label="Email для восстановления"><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Field><button style={{ alignSelf: 'flex-end' }} onClick={saveEmail}>Сохранить</button></div>
+        <div className="row">
+          <Field label="Текущий пароль"><input type="password" value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} /></Field>
+          <Field label="Новый пароль"><input type="password" value={pw.password} onChange={(e) => setPw({ ...pw, password: e.target.value })} /></Field>
+          <button style={{ alignSelf: 'flex-end' }} onClick={changePw}>Сменить</button>
+        </div>
+        <button className="btn-ghost" onClick={onLogout}>Выйти</button>
+      </div>
+
+      <div className="card stack">
+        <h2>Данные</h2>
+        <div className="row">
+          <a className="btn grow" href="/api/export" download>Экспорт JSON</a>
+          <button className="grow" onClick={() => fileRef.current.click()}>Импорт JSON</button>
+          <input ref={fileRef} type="file" accept="application/json" hidden onChange={importFile} />
+        </div>
+        <p className="tiny muted">Импорт заменяет тренировки и веса, программа сохраняется как новая версия. Бэкап базы делается автоматически каждую ночь.</p>
+      </div>
+
+      {user.is_admin && <Admin toast={toast} />}
+
+      <div className="card small muted">
+        <div className="row between"><span>Версия {version}</span>{ver?.latest && <span>последний релиз {ver.latest}</span>}</div>
+        {ver?.update_available && <div className="accent" style={{ marginTop: 4 }}>Доступно обновление: <a href={ver.url} target="_blank" rel="noreferrer">{ver.latest}</a>. На сервере: <code>./update.sh</code></div>}
+        {ver?.error && <div className="tiny">Проверка обновлений: {ver.error}</div>}
+        <div className="tiny" style={{ marginTop: 4 }}><a href={`https://github.com/${ver?.repo || 'alexbelens/training'}`} target="_blank" rel="noreferrer">github.com/{ver?.repo || 'alexbelens/training'}</a></div>
+      </div>
+    </>
+  );
+}
+
+function Admin({ toast }) {
+  const [ov, setOv] = useState(null);
+  const load = () => api.get('/api/admin/overview').then(setOv).catch((e) => toast(e.message));
+  useEffect(() => { load(); }, []);
+  if (!ov) return null;
+  const copy = async (t) => { try { await navigator.clipboard.writeText(t); toast('Скопировано'); } catch { prompt('Скопируй ссылку:', t); } };
+  return (
+    <div className="card stack">
+      <h2>Администрирование</h2>
+      <label className="check"><input type="checkbox" checked={ov.registration_open} onChange={async (e) => { await api.put('/api/admin/settings', { registration_open: e.target.checked }); load(); }} />Регистрация открыта{ov.invite_required ? ' (нужен код приглашения)' : ''}</label>
+      {ov.pending_resets.length > 0 && (
+        <div className="card sub">
+          <div className="small"><b>Запросы на сброс пароля</b> — передай ссылку человеку лично:</div>
+          {ov.pending_resets.map((r) => <div key={r.user_id} className="list-item small"><span>{r.login} · {fmtDate(r.created_at)}</span><button className="btn-sm" onClick={() => copy(r.link)}>ссылка</button></div>)}
+        </div>
+      )}
+      <table className="table">
+        <thead><tr><th>Пользователь</th><th>Трен.</th><th>Последняя</th><th /></tr></thead>
+        <tbody>{ov.users.map((u) => (
+          <tr key={u.id}>
+            <td>{u.login}{u.is_admin ? ' ★' : ''}{u.open_requests ? <span className="chip accent" style={{ marginLeft: 4 }}>{u.open_requests} запр.</span> : null}<div className="tiny muted">{u.email || 'без email'}</div></td>
+            <td>{u.workouts}</td><td>{u.last_workout ? fmtDate(u.last_workout) : '—'}</td>
+            <td style={{ whiteSpace: 'nowrap' }}>
+              <button className="btn-sm btn-ghost" title="ссылка для сброса пароля" onClick={async () => { const r = await api.post(`/api/admin/users/${u.id}/reset-link`); copy(r.link); }}>🔑</button>
+              {!u.is_admin && <Confirm className="btn-sm btn-ghost" onYes={async () => { await api.del(`/api/admin/users/${u.id}`); load(); }}>🗑</Confirm>}
+            </td>
+          </tr>
+        ))}</tbody>
+      </table>
+      <button className="btn-sm btn-ghost" onClick={async () => { const r = await api.post('/api/admin/backup'); toast('Бэкап: ' + r.file); }}>Сделать бэкап сейчас</button>
+    </div>
+  );
+}
