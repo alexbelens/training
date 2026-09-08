@@ -16,9 +16,10 @@ RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
 COPY server ./server
 COPY shared ./shared
 COPY --from=build /app/dist ./dist
-RUN mkdir -p /data && chown -R node:node /data /app
-USER node
+COPY scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN apk add --no-cache su-exec && mkdir -p /data && chown -R node:node /data /app
 VOLUME /data
 EXPOSE 8080
 HEALTHCHECK --interval=60s --timeout=5s --start-period=10s CMD wget -qO- http://127.0.0.1:8080/api/health || exit 1
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "server/index.js"]
