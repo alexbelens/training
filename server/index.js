@@ -57,7 +57,11 @@ app.use('/api', (req, res, next) => {
   req.user = store.userBySession(cookies(req).session);
   next();
 });
-const requireUser = (req, res, next) => (req.user ? next() : res.status(401).json({ error: 'auth_required' }));
+const requireUser = (req, res, next) => {
+  if (req.user) return next();
+  if (req.coach) return req.path.startsWith('/admin') ? next() : res.status(400).json({ error: 'coach: нужен заголовок X-User-Id' });
+  res.status(401).json({ error: 'auth_required' });
+};
 const requireAdmin = (req, res, next) => (req.coach || req.user?.is_admin ? next() : res.status(403).json({ error: 'admin_required' }));
 const requireCoach = (req, res, next) => (req.coach ? next() : res.status(403).json({ error: 'coach_token_required' }));
 
