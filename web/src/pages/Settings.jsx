@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
+import { DOW_SHORT, normalizeSchedule } from '@shared/schedule.js';
 import { Field, Confirm, fmtDate, useToast } from '../components/ui.jsx';
 
 export default function Settings({ state, reload, onLogout }) {
@@ -65,6 +66,8 @@ export default function Settings({ state, reload, onLogout }) {
       </div>
 
       <div className="col">
+      <ScheduleCard profile={profile} program={state.program} reload={reload} toast={toast} />
+
       <div className="card stack">
         <h2>Аккаунт · {user.login} {user.is_admin && <span className="chip accent">админ</span>}</h2>
         <div className="row"><Field label="Email для восстановления"><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Field><button style={{ alignSelf: 'flex-end' }} onClick={saveEmail}>Сохранить</button></div>
@@ -113,6 +116,59 @@ export default function Settings({ state, reload, onLogout }) {
     </div>
   );
 }
+
+function ScheduleCard({ profile, program, reload, toast }) {
+  const types = Object.keys(program?.days || { A: [], B: [] });
+  const [sch, setSch] = useState(normalizeSchedule(profile.schedule));
+  const [busy, setBusy] = useState(false);
+  const byDow = Object.fromEntries(sch.map((s) => [s.dow, s.type]));
+
+  function toggle(dow) {
+    if (byDow[dow]) return setSch(sch.filter((s) => s.dow !== dow));
+    // новый день получает следующий тип по чередованию
+    const order = types.filter((t) => t !== 'C');
+    const prev = [...sch].sort((a, b) => a.dow - b.dow).filter((s) => s.dow < dow).pop() || [...sch].sort((a, b) => b.dow - a.dow)[0];
+    const next = prev ? order[(order.indexOf(prev.type) + 1) % order.length] : order[0];
+    setSch(normalizeSchedule([...sch, { dow, type: next || 'A' }]));
+  }
+  const setType = (dow, type) => setSch(sch.map((s) => (s.dow === dow ? { ...s, type } : s)));
+
+  async function save() {
+    setBusy(true);
+    try { await api.put('/api/profile', { schedule: sch }); toast('Расписание сохранено'); await reload(); }
+    catch (e) { toast(e.message); } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="card stack">
+      <div className="row between">
+        <h2>Расписание</h2>
+        <span className="chip accent">{sch.length ? `${sch.length} ${plural(sch.length)} в неделю` : 'не задано'}</span>
+      </div>
+      <p className="small muted">Отметь дни, в которые ходишь в зал, и выбери, что делаешь в каждый из них. Пропуски можно отмечать на главном экране, они учитываются в рекомендациях весов.</p>
+      <div className="dows">
+        {[1, 2, 3, 4, 5, 6, 7].map((d) => (
+          <button key={d} type="button" className={byDow[d] ? 'active' : ''} onClick={() => toggle(d)}>{DOW_SHORT[d]}</button>
+        ))}
+      </div>
+      {sch.length > 0 && (
+        <div className="stack">
+          {sch.map((s) => (
+            <div key={s.dow} className="row between">
+              <span className="small">{DOW_SHORT[s.dow]}</span>
+              <select style={{ maxWidth: 220 }} value={s.type} onChange={(e) => setType(s.dow, e.target.value)}>
+                {types.map((t) => <option key={t} value={t}>Тренировка {t}</option>)}
+              </select>
+            </div>
+          ))}
+        </div>
+      )}
+      <button className="btn-primary btn-block" disabled={busy} onClick={save}>Сохранить расписание</button>
+    </div>
+  );
+}
+
+const plural = (n) => (n % 10 === 1 && n % 100 !== 11 ? 'тренировка' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'тренировки' : 'тренировок');
 
 function Admin({ toast }) {
   const [ov, setOv] = useState(null);

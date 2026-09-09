@@ -9,6 +9,7 @@ import { scheduleBackups, runBackup } from './backup.js';
 import { sendMail, MAIL_ENABLED } from './mail.js';
 import { validateProgram } from '../shared/constraints.js';
 import { suggest, nextDayType, kneeAlarm } from '../shared/progression.js';
+import { scheduleAround, missedDays, nextPlanned, adherence, normalizeSchedule, nextTypeInRotation } from '../shared/schedule.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8080);
@@ -40,6 +41,7 @@ const setSessionCookie = (req, res, token) => {
 const clearSessionCookie = (res) => res.setHeader('Set-Cookie', 'session=; Path=/; HttpOnly; Max-Age=0');
 const baseUrl = (req) => PUBLIC_URL || `${req.protocol}://${req.get('host')}`;
 const registrationOpen = () => store.getSetting('registration_open', true) !== false;
+const today = () => new Date().toLocaleDateString('sv-SE'); // локальная дата сервера в формате YYYY-MM-DD
 
 // простой лимитер попыток входа: 10 за 15 минут на ip+login
 const attempts = new Map();
@@ -160,23 +162,35 @@ api.put('/account', (req, res) => {
 api.get('/state', (req, res) => {
   const uid = req.user.id;
   const workouts = store.listWorkouts(uid);
+  const profile = store.getProfile(uid);
+  const program = store.getProgram(uid);
+  const now = today();
   res.json({
     version: CURRENT_VERSION,
     user: req.user,
-    profile: store.getProfile(uid),
-    program: store.getProgram(uid),
+    profile,
+    program,
     workouts,
     weights: store.listWeights(uid),
     reports: store.listReports(uid, 10),
     requests: store.listRequests(uid, 'open'),
-    next_day: nextDayType(workouts),
+    today: now,
+    next_day: nextTypeInRotation(workouts, profile, program) || nextDayType(workouts),
+    schedule: scheduleAround(profile, workouts, program, now, { back: 21, forward: 21 }),
+    next_planned: nextPlanned(profile, workouts, program, now),
+    missed: missedDays(profile, workouts, program, now, 21),
+    adherence: adherence(profile, workouts, program, now),
     knee_alarm: kneeAlarm(workouts),
   });
 });
 api.get('/version', async (req, res) => res.json(await checkForUpdate({ force: req.query.force === '1' })));
 
 // ---------- profile ----------
-api.put('/profile', (req, res) => res.json(store.saveProfile(req.user.id, req.body || {})));
+api.put('/profile', (req, res) => {
+  const patch = { ...(req.body || {}) };
+  if ('schedule' in patch) patch.schedule = normalizeSchedule(patch.schedule);
+  res.json(store.saveProfile(req.user.id, patch));
+});
 
 // ---------- program ----------
 api.get('/program', (req, res) => res.json(store.getProgram(req.user.id)));
@@ -199,7 +213,8 @@ api.get('/suggest/:day', (req, res) => {
   const uid = req.user.id;
   const program = store.getProgram(uid), profile = store.getProfile(uid), workouts = store.listWorkouts(uid);
   const items = program?.days?.[req.params.day] || [];
-  res.json(Object.fromEntries(items.map((it) => [it.id, suggest(it, workouts, { adaptation: !!profile.adaptation_period })])));
+  const opts = { adaptation: !!profile.adaptation_period, today: req.query.date || today() };
+  res.json(Object.fromEntries(items.map((it) => [it.id, suggest(it, workouts, opts)])));
 });
 
 // ---------- workouts ----------
@@ -207,7 +222,20 @@ api.get('/workouts', (req, res) => res.json(store.listWorkouts(req.user.id)));
 api.post('/workouts', (req, res) => {
   const w = req.body || {};
   if (!w.date || !w.type) return res.status(400).json({ error: 'date и type обязательны' });
+  const existing = store.listWorkouts(req.user.id).find((x) => x.date === String(w.date));
+  if (existing) return res.status(409).json({ error: 'На эту дату уже есть запись', workout: existing });
   res.json(store.createWorkout(req.user.id, w));
+});
+
+// Пропуск тренировки: запись без подходов, очередь типов при этом не сдвигается.
+api.post('/skip', (req, res) => {
+  const { date, type, reason } = req.body || {};
+  if (!date || !type) return res.status(400).json({ error: 'date и type обязательны' });
+  const existing = store.listWorkouts(req.user.id).find((x) => x.date === String(date));
+  if (existing) {
+    return res.json(store.updateWorkout(req.user.id, existing.id, { status: 'skipped', notes: reason || existing.notes, exercises: [] }));
+  }
+  res.json(store.createWorkout(req.user.id, { date, type, status: 'skipped', notes: reason || null, exercises: [], pain: null }));
 });
 api.put('/workouts/:id', (req, res) => {
   const w = store.updateWorkout(req.user.id, Number(req.params.id), req.body || {});

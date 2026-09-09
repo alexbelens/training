@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { suggest, tonnage } from '@shared/progression.js';
+import { DOW_SHORT, DOW_FULL, weeklyCount } from '@shared/schedule.js';
 import { Field, Confirm, fmtDate, today, photoUrl, useToast } from '../components/ui.jsx';
 
 function blankFromProgram(items, suggestions) {
@@ -15,21 +16,33 @@ function blankFromProgram(items, suggestions) {
   });
 }
 
-export default function Workout({ state, reload }) {
+export default function Workout({ state, reload, setTab }) {
   const toast = useToast();
-  const { program, profile, workouts, next_day } = state;
+  const { program, profile, workouts, next_day, next_planned, missed = [], adherence } = state;
   const [editing, setEditing] = useState(null); // {id?, date, type, exercises, pain, notes}
-  const [day, setDay] = useState(next_day || 'A');
+  const planned = next_planned;
+  const [day, setDay] = useState(planned?.suggested_type || next_day || 'A');
+  const [date, setDate] = useState(planned?.status === 'today' ? planned.date : (state.today || today()));
   const dayItems = program?.days?.[day] || [];
-  const suggestions = useMemo(() => Object.fromEntries(dayItems.map((it) => [it.id, suggest(it, workouts, { adaptation: !!profile.adaptation_period })])), [dayItems, workouts, profile.adaptation_period]);
+  const suggestions = useMemo(
+    () => Object.fromEntries(dayItems.map((it) => [it.id, suggest(it, workouts, { adaptation: !!profile.adaptation_period, today: date })])),
+    [dayItems, workouts, profile.adaptation_period, date]
+  );
+  const perWeek = weeklyCount(profile);
 
-  function start() {
-    setEditing({ date: today(), type: day, exercises: blankFromProgram(dayItems, suggestions), pain: null, notes: '' });
+  function start(d = date, type = day) {
+    const items = program?.days?.[type] || [];
+    const sugg = Object.fromEntries(items.map((it) => [it.id, suggest(it, workouts, { adaptation: !!profile.adaptation_period, today: d })]));
+    setEditing({ date: d, type, exercises: blankFromProgram(items, sugg), pain: null, notes: '' });
     window.scrollTo(0, 0);
   }
   function openExisting(w) {
     setEditing({ ...w, exercises: w.exercises.map((e) => ({ ...e, sets: (e.sets || []).map((s) => ({ ...s })) })) });
     window.scrollTo(0, 0);
+  }
+  async function skip(d, type, reason) {
+    try { await api.post('/api/skip', { date: d, type, reason }); toast('Отмечено как пропуск'); await reload(); }
+    catch (e) { toast(e.message); }
   }
 
   if (editing) return <Editor w={editing} setW={setEditing} program={program} suggestions={editing.id ? {} : suggestions} onClose={() => setEditing(null)} reload={reload} toast={toast} />;
@@ -37,12 +50,25 @@ export default function Workout({ state, reload }) {
   const sorted = [...workouts].sort((a, b) => String(b.date).localeCompare(String(a.date)) || b.id - a.id);
   return (
     <div className="cols2">
-      <div className="card">
-        <div className="row between">
-          <h2>Новая тренировка</h2>
-          <span className="chip accent">далее по схеме: {next_day}</span>
+      {perWeek === 0 && (
+        <div className="card span2">
+          <h2>Расписание не настроено</h2>
+          <p className="small muted">Выбери, сколько раз в неделю тренируешься и в какие дни. Тогда приложение будет напоминать, что сегодня по плану, и учитывать пропуски.</p>
+          <button className="btn-primary" onClick={() => setTab && setTab('settings')}>Настроить расписание</button>
         </div>
-        <div className="seg" style={{ margin: '8px 0 12px' }}>
+      )}
+
+      {perWeek > 0 && <PlanCard className="plan" planned={planned} missed={missed} adherence={adherence} onStart={start} onSkip={skip} today={state.today} />}
+
+      <div className="card session">
+        <div className="row between">
+          <h2>{planned?.status === 'today' ? 'Сегодняшняя тренировка' : 'Новая тренировка'}</h2>
+          <span className="chip accent">далее по плану: {planned?.suggested_type || next_day}</span>
+        </div>
+        <div className="row" style={{ margin: '8px 0' }}>
+          <Field label="Дата"><input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
+        </div>
+        <div className="seg" style={{ margin: '0 0 12px' }}>
           {Object.keys(program?.days || {}).map((d) => <button key={d} className={d === day ? 'active' : ''} onClick={() => setDay(d)}>{d}</button>)}
         </div>
         <div className="stack">
@@ -60,22 +86,100 @@ export default function Workout({ state, reload }) {
           })}
         </div>
         {profile.adaptation_period && <p className="tiny muted" style={{ marginTop: 10 }}>Адаптационный период: 2 рабочих подхода. Выключается в настройках.</p>}
-        <button className="btn-primary btn-block" style={{ marginTop: 10 }} onClick={start}>Начать тренировку {day}</button>
+        <button className="btn-primary btn-block" style={{ marginTop: 10 }} onClick={() => start()}>Начать тренировку {day}</button>
       </div>
 
-      <div className="card">
+      <div className="card history">
         <h2>История</h2>
         {sorted.length === 0 && <p className="muted small">Тренировок пока нет.</p>}
-        {sorted.map((w) => (
+        {sorted.map((w) => w.status === 'skipped' ? (
+          <div key={w.id} className="list-item muted">
+            <div>
+              <div><b>{fmtDate(w.date)}</b> · {DOW_SHORT[dowNum(w.date)]} · <span className="chip">пропуск</span> {w.type}</div>
+              {w.notes && <div className="small">{w.notes}</div>}
+            </div>
+            <Confirm className="btn-sm btn-ghost" onYes={async () => { await api.del(`/api/workouts/${w.id}`); await reload(); }}>убрать</Confirm>
+          </div>
+        ) : (
           <div key={w.id} className="list-item" onClick={() => openExisting(w)} style={{ cursor: 'pointer' }}>
             <div>
-              <div><b>{fmtDate(w.date)}</b> · день {w.type} <span className="muted small">· {w.exercises.filter((e) => e.done).length}/{w.exercises.length} упр.</span></div>
+              <div><b>{fmtDate(w.date)}</b> · {DOW_SHORT[dowNum(w.date)]} · день {w.type} <span className="muted small">· {w.exercises.filter((e) => e.done).length}/{w.exercises.length} упр.</span></div>
               <div className="small muted">тоннаж {Math.round(tonnage(w, program))} кг{w.pain != null ? ` · колено ${w.pain}/10` : ' · боль не указана'}</div>
             </div>
             <span className="muted">›</span>
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+const dowNum = (date) => (new Date(`${String(date).slice(0, 10)}T00:00:00Z`).getUTCDay() || 7);
+
+function PlanCard({ className = '', planned, missed, adherence, onStart, onSkip, today }) {
+  const [skipping, setSkipping] = useState(null); // {date, type}
+  const [reason, setReason] = useState('');
+  const isToday = planned?.status === 'today';
+  const catchUp = planned && planned.suggested_type !== planned.planned_type;
+
+  return (
+    <div className={'card ' + className}>
+      <div className="row between">
+        <h2>План</h2>
+        {adherence?.planned > 0 && (
+          <span className="chip" title="выполнено из запланированного за последний месяц">
+            за месяц {adherence.done} из {adherence.planned}
+          </span>
+        )}
+      </div>
+
+      {planned ? (
+        <>
+          <p style={{ margin: '4px 0 8px' }}>
+            {isToday
+              ? <>Сегодня <b>{DOW_FULL[planned.dow]}</b> — тренировка <b className="accent">{planned.suggested_type}</b></>
+              : <>Сегодня отдых. Ближайшая: <b>{DOW_FULL[planned.dow]}, {fmtDate(planned.date)}</b> — <b className="accent">{planned.suggested_type}</b></>}
+          </p>
+          {catchUp && (
+            <p className="tiny warn">По расписанию здесь {planned.planned_type}, но по очереди следующая {planned.suggested_type}. Предлагаю её, иначе нагрузка перекосится. Тип можно сменить ниже.</p>
+          )}
+          <div className="row wrap">
+            <button className="btn-primary grow" onClick={() => onStart(isToday ? planned.date : today, planned.suggested_type)}>
+              {isToday ? 'Начать' : 'Тренироваться сегодня'}
+            </button>
+            {isToday && <button className="btn-sm" onClick={() => setSkipping({ date: planned.date, type: planned.suggested_type })}>Пропустить</button>}
+          </div>
+        </>
+      ) : <p className="small muted">Ближайших тренировок по расписанию нет.</p>}
+
+      {missed.length > 0 && (
+        <>
+          <div className="hr" />
+          <div className="small"><b>Пропущенные дни</b> <span className="muted">— отметь, чтобы план остался честным</span></div>
+          {missed.slice(-4).map((m) => (
+            <div key={m.date} className="list-item small">
+              <span>{DOW_SHORT[m.dow]} {fmtDate(m.date)} · {m.planned_type}</span>
+              <span className="row">
+                <button className="btn-sm btn-ghost" onClick={() => onStart(m.date, m.planned_type)}>внести</button>
+                <button className="btn-sm btn-ghost" onClick={() => setSkipping({ date: m.date, type: m.planned_type })}>пропуск</button>
+              </span>
+            </div>
+          ))}
+        </>
+      )}
+
+      {skipping && (
+        <div className="card sub" style={{ marginTop: 10 }}>
+          <div className="small">Пропуск {fmtDate(skipping.date)} · {skipping.type}</div>
+          <Field label="Причина (необязательно)">
+            <input autoFocus value={reason} onChange={(e) => setReason(e.target.value)} placeholder="болел, работа, не было сил…" />
+          </Field>
+          <div className="row" style={{ marginTop: 8 }}>
+            <button className="btn-primary grow" onClick={() => { onSkip(skipping.date, skipping.type, reason); setSkipping(null); setReason(''); }}>Отметить пропуск</button>
+            <button className="btn-ghost" onClick={() => { setSkipping(null); setReason(''); }}>Отмена</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

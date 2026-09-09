@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS workouts (
   exercises TEXT NOT NULL,
   pain INTEGER,
   notes TEXT,
+  status TEXT NOT NULL DEFAULT 'done',
   created_at TEXT NOT NULL DEFAULT (${NOW}),
   updated_at TEXT NOT NULL DEFAULT (${NOW}),
   UNIQUE(user_id, client_id)
@@ -86,6 +87,13 @@ CREATE TABLE IF NOT EXISTS coach_requests (
   closed_at TEXT
 );
 `);
+
+// Миграции для баз, созданных прежними версиями
+function addColumn(table, column, definition) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+  if (!cols.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+}
+addColumn('workouts', 'status', "TEXT NOT NULL DEFAULT 'done'");
 
 const j = (v) => JSON.stringify(v);
 const p = (s, fallback = null) => { try { return s == null ? fallback : JSON.parse(s); } catch { return fallback; } };
@@ -205,7 +213,7 @@ export function saveProgram(userId, program, { rationale = null, author = 'user'
 }
 
 // ---------- workouts ----------
-const rowToWorkout = (r) => ({ id: r.id, date: r.date, type: r.type, exercises: p(r.exercises, []), pain: r.pain, notes: r.notes, created_at: r.created_at, updated_at: r.updated_at });
+const rowToWorkout = (r) => ({ id: r.id, date: r.date, type: r.type, exercises: p(r.exercises, []), pain: r.pain, notes: r.notes, status: r.status || 'done', created_at: r.created_at, updated_at: r.updated_at });
 export function listWorkouts(userId) {
   return db.prepare('SELECT * FROM workouts WHERE user_id = ? ORDER BY date ASC, id ASC').all(userId).map(rowToWorkout);
 }
@@ -215,8 +223,9 @@ export function getWorkout(userId, id) {
 }
 export function createWorkout(userId, w) {
   const pain = w.pain == null || w.pain === '' ? null : Number(w.pain);
-  const info = db.prepare('INSERT INTO workouts(user_id, client_id, date, type, exercises, pain, notes) VALUES(?, ?, ?, ?, ?, ?, ?)')
-    .run(userId, w.client_id ? Number(w.client_id) : null, String(w.date), String(w.type), j(w.exercises || []), pain, w.notes ?? null);
+  const status = w.status === 'skipped' ? 'skipped' : 'done';
+  const info = db.prepare('INSERT INTO workouts(user_id, client_id, date, type, exercises, pain, notes, status) VALUES(?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(userId, w.client_id ? Number(w.client_id) : null, String(w.date), String(w.type), j(w.exercises || []), pain, w.notes ?? null, status);
   return getWorkout(userId, Number(info.lastInsertRowid));
 }
 export function updateWorkout(userId, id, w) {
@@ -224,8 +233,9 @@ export function updateWorkout(userId, id, w) {
   if (!cur) return null;
   const next = { ...cur, ...w };
   const pain = next.pain == null || next.pain === '' ? null : Number(next.pain);
-  db.prepare(`UPDATE workouts SET date = ?, type = ?, exercises = ?, pain = ?, notes = ?, updated_at = ${NOW} WHERE user_id = ? AND id = ?`)
-    .run(String(next.date), String(next.type), j(next.exercises || []), pain, next.notes ?? null, userId, id);
+  const status = next.status === 'skipped' ? 'skipped' : 'done';
+  db.prepare(`UPDATE workouts SET date = ?, type = ?, exercises = ?, pain = ?, notes = ?, status = ?, updated_at = ${NOW} WHERE user_id = ? AND id = ?`)
+    .run(String(next.date), String(next.type), j(next.exercises || []), pain, next.notes ?? null, status, userId, id);
   return getWorkout(userId, id);
 }
 export function deleteWorkout(userId, id) {

@@ -25,6 +25,7 @@ export function sessionsFor(exercise, workouts) {
   const name = normName(exercise.name);
   const out = [];
   for (const w of workouts) {
+    if (w.status === 'skipped') continue; // пропущенная тренировка не влияет на прогрессию
     const ex = (w.exercises || []).find(
       (e) => (exercise.id && e.program_id === exercise.id) || normName(e.name) === name
     );
@@ -73,19 +74,49 @@ export function suggest(exercise, workouts, opts = {}) {
   const base = { sets, reps: targetReps, step };
   const withWarmup = (r) => (exercise.warmup ? { ...r, warmup: Math.max(step, roundToStep(r.w * 0.6, step)) } : r);
 
-  if (knee && painKnown && pain >= 6) {
-    return withWarmup({ ...base, w: floorToStep(w * 0.7, step), note: 'колено 6+ — минус 30%', rule: 'pain6' });
-  }
-  if (knee && painKnown && pain >= 4) {
-    return withWarmup({ ...base, w: floorToStep(w * 0.85, step), note: 'колено 4–5 — минус 15%', rule: 'pain4' });
+  const gap = layoffDays(last.workout.date, opts.today);
+  const layoff = layoffFactor(gap);
+
+  // Боль и перерыв — оба поводы снизить вес. Берём более осторожный вариант, а не оба сразу.
+  let painFactor = 1, painNote = null, rule = null;
+  if (knee && painKnown && pain >= 6) { painFactor = 0.7; painNote = 'колено 6+ — минус 30%'; rule = 'pain6'; }
+  else if (knee && painKnown && pain >= 4) { painFactor = 0.85; painNote = 'колено 4–5 — минус 15%'; rule = 'pain4'; }
+
+  const factor = Math.min(painFactor, layoff.factor);
+  if (factor < 1) {
+    const notes = [painNote, layoff.note].filter(Boolean);
+    const chosen = painFactor <= layoff.factor ? (rule || 'pain') : 'layoff';
+    return withWarmup({
+      ...base, w: floorToStep(w * factor, step),
+      note: (factor === painFactor && factor === layoff.factor ? notes : [factor === painFactor ? painNote : layoff.note]).filter(Boolean).join('; '),
+      rule: chosen, gap_days: gap,
+    });
   }
   if (exercise.no_progression) {
-    return withWarmup({ ...base, w, note: 'закрепляем, вес не добавляем', rule: 'hold' });
+    return withWarmup({ ...base, w, note: 'закрепляем, вес не добавляем', rule: 'hold', gap_days: gap });
   }
   if (allDone) {
-    return withWarmup({ ...base, w: roundToStep(w + step, step), note: 'прошлый раз всё чисто — прибавляем', rule: 'up' });
+    return withWarmup({ ...base, w: roundToStep(w + step, step), note: 'прошлый раз всё чисто — прибавляем', rule: 'up', gap_days: gap });
   }
-  return withWarmup({ ...base, w, note: 'закрепляем вес, добиваем повторы', rule: 'keep' });
+  return withWarmup({ ...base, w, note: 'закрепляем вес, добиваем повторы', rule: 'keep', gap_days: gap });
+}
+
+/** Сколько дней прошло с последней сессии по упражнению (null, если сегодняшняя дата не передана). */
+export function layoffDays(lastDate, today) {
+  if (!today || !lastDate) return null;
+  const a = new Date(`${String(lastDate).slice(0, 10)}T00:00:00Z`);
+  const b = new Date(`${String(today).slice(0, 10)}T00:00:00Z`);
+  const d = Math.round((b - a) / 86400000);
+  return d >= 0 ? d : null;
+}
+
+/** Детренированность после паузы: чем длиннее перерыв, тем осторожнее возвращаемся. */
+export function layoffFactor(gapDays) {
+  if (gapDays == null) return { factor: 1, note: null };
+  if (gapDays >= 56) return { factor: 0.6, note: `перерыв ${gapDays} дн. — начинаем заново, минус 40%` };
+  if (gapDays >= 28) return { factor: 0.8, note: `перерыв ${gapDays} дн. — минус 20%` };
+  if (gapDays >= 14) return { factor: 0.9, note: `перерыв ${gapDays} дн. — минус 10%` };
+  return { factor: 1, note: null };
 }
 
 /** Два раза подряд боль ≥6 — ноги только кардио, к врачу. */
@@ -100,6 +131,7 @@ export function kneeAlarm(workouts) {
 /** Тоннаж тренировки: Σ вес × повторы (для per_hand — ×2). */
 export function tonnage(workout, program) {
   let t = 0;
+  if (workout?.status === 'skipped') return 0;
   for (const ex of workout.exercises || []) {
     const item = findProgramItem(program, ex);
     const mult = item?.per_hand ? 2 : 1;
@@ -120,6 +152,7 @@ export function findProgramItem(program, ex) {
 /** Следующий день по схеме A → B → A → B (C не ломает чередование). */
 export function nextDayType(workouts) {
   const ab = [...workouts]
+    .filter((w) => w.status !== 'skipped')
     .filter((w) => w.type === 'A' || w.type === 'B')
     .sort((a, b) => String(a.date).localeCompare(String(b.date)) || a.id - b.id);
   if (ab.length === 0) return 'A';

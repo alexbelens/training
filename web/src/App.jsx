@@ -69,7 +69,7 @@ export default function App() {
         {!state.profile.onboarded && tab !== 'settings' && (
           <div className="banner info"><span className="small">Заполни профиль, чтобы тренер знал твои ограничения.</span><button className="btn-sm" onClick={() => setTab('settings')}>Профиль</button></div>
         )}
-        <main className={'page page-' + tab}><Page state={state} reload={reload} onLogout={logout} /></main>
+        <main className={'page page-' + tab}><Page state={state} reload={reload} onLogout={logout} setTab={setTab} /></main>
       </div>
       </div>
     </ToastProvider>

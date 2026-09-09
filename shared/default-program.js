@@ -38,6 +38,9 @@ export const DEFAULT_PROFILE = {
   target_weight_kg: null,
   started_at: null,
   gym_equipment: '',
+  // Расписание: какие дни недели тренировочные и что в них делаем.
+  // [{ dow: 1..7 (Пн..Вс), type: 'A' }] — количество тренировок в неделю = длина массива.
+  schedule: [],
   adaptation_period: true,
   knee: '',
   goals: '',
