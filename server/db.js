@@ -3,10 +3,14 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DEFAULT_PROGRAM, DEFAULT_PROFILE } from '../shared/default-program.js';
+import { isMachineType } from '../shared/machine-types.js';
 
 export const DATA_DIR = process.env.DATA_DIR || path.resolve('data');
 fs.mkdirSync(DATA_DIR, { recursive: true });
 export const DB_PATH = path.join(DATA_DIR, 'training.db');
+// Фото тренажёров лежат файлами рядом с БД — в бэкап попадают вместе с каталогом data/.
+export const PHOTOS_DIR = path.join(DATA_DIR, 'photos');
+fs.mkdirSync(PHOTOS_DIR, { recursive: true });
 
 export const db = new DatabaseSync(DB_PATH);
 db.exec('PRAGMA journal_mode = WAL');
@@ -86,6 +90,26 @@ CREATE TABLE IF NOT EXISTS coach_requests (
   created_at TEXT NOT NULL DEFAULT (${NOW}),
   closed_at TEXT
 );
+CREATE TABLE IF NOT EXISTS gyms (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  note TEXT,
+  created_at TEXT NOT NULL DEFAULT (${NOW})
+);
+CREATE INDEX IF NOT EXISTS gyms_user ON gyms(user_id);
+CREATE TABLE IF NOT EXISTS machines (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  gym_id INTEGER NOT NULL REFERENCES gyms(id) ON DELETE CASCADE,
+  type TEXT NOT NULL,
+  name TEXT,
+  vendor TEXT,
+  note TEXT,
+  photo TEXT,
+  created_at TEXT NOT NULL DEFAULT (${NOW})
+);
+CREATE INDEX IF NOT EXISTS machines_gym ON machines(gym_id);
 `);
 
 // Миграции для баз, созданных прежними версиями
@@ -276,6 +300,81 @@ export function closeRequest(userId, id, reportId = null) {
 }
 
 // ---------- export / import (формат раздела 6 спеки) ----------
+// ---------- залы и тренажёры ----------
+const machineRows = (userId, gymId) =>
+  db.prepare('SELECT id, gym_id, type, name, vendor, note, photo FROM machines WHERE user_id = ? AND gym_id = ? ORDER BY id').all(userId, gymId);
+
+export function listGyms(userId) {
+  return db.prepare('SELECT id, name, note, created_at FROM gyms WHERE user_id = ? ORDER BY id').all(userId)
+    .map((g) => ({ ...g, machines: machineRows(userId, g.id) }));
+}
+export function getGym(userId, id) {
+  const g = db.prepare('SELECT id, name, note, created_at FROM gyms WHERE user_id = ? AND id = ?').get(userId, Number(id));
+  return g ? { ...g, machines: machineRows(userId, g.id) } : null;
+}
+export function createGym(userId, { name, note = null }) {
+  const id = db.prepare('INSERT INTO gyms(user_id, name, note) VALUES(?, ?, ?)').run(userId, String(name).trim(), note).lastInsertRowid;
+  return getGym(userId, id);
+}
+export function updateGym(userId, id, patch) {
+  const g = getGym(userId, id);
+  if (!g) return null;
+  db.prepare('UPDATE gyms SET name = ?, note = ? WHERE user_id = ? AND id = ?')
+    .run(patch.name != null ? String(patch.name).trim() : g.name, patch.note !== undefined ? patch.note : g.note, userId, Number(id));
+  return getGym(userId, id);
+}
+export function deleteGym(userId, id) {
+  for (const m of machineRows(userId, Number(id))) deletePhotoFile(m.photo);
+  return db.prepare('DELETE FROM gyms WHERE user_id = ? AND id = ?').run(userId, Number(id)).changes > 0;
+}
+
+export function getMachine(userId, id) {
+  return db.prepare('SELECT id, gym_id, type, name, vendor, note, photo FROM machines WHERE user_id = ? AND id = ?').get(userId, Number(id)) || null;
+}
+export function createMachine(userId, gymId, { type, name = null, vendor = null, note = null }) {
+  if (!getGym(userId, gymId)) return null;
+  const id = db.prepare('INSERT INTO machines(user_id, gym_id, type, name, vendor, note) VALUES(?, ?, ?, ?, ?, ?)')
+    .run(userId, Number(gymId), String(type), name, vendor, note).lastInsertRowid;
+  return getMachine(userId, id);
+}
+export function updateMachine(userId, id, patch) {
+  const m = getMachine(userId, id);
+  if (!m) return null;
+  const v = (k) => (patch[k] !== undefined ? patch[k] : m[k]);
+  db.prepare('UPDATE machines SET type = ?, name = ?, vendor = ?, note = ? WHERE user_id = ? AND id = ?')
+    .run(String(v('type')), v('name'), v('vendor'), v('note'), userId, Number(id));
+  return getMachine(userId, id);
+}
+export function deleteMachine(userId, id) {
+  const m = getMachine(userId, id);
+  if (!m) return false;
+  deletePhotoFile(m.photo);
+  return db.prepare('DELETE FROM machines WHERE user_id = ? AND id = ?').run(userId, Number(id)).changes > 0;
+}
+
+function deletePhotoFile(photo) {
+  if (!photo) return;
+  try { fs.unlinkSync(path.join(PHOTOS_DIR, path.basename(photo))); } catch {}
+}
+export const photoPath = (photo) => (photo ? path.join(PHOTOS_DIR, path.basename(photo)) : null);
+/** Кладёт файл на диск и привязывает к тренажёру, старый снимок удаляет. */
+export function setMachinePhoto(userId, id, buffer, ext) {
+  const m = getMachine(userId, id);
+  if (!m) return null;
+  const name = `${crypto.randomUUID()}.${ext}`;
+  fs.writeFileSync(path.join(PHOTOS_DIR, name), buffer);
+  deletePhotoFile(m.photo);
+  db.prepare('UPDATE machines SET photo = ? WHERE user_id = ? AND id = ?').run(name, userId, Number(id));
+  return getMachine(userId, id);
+}
+export function clearMachinePhoto(userId, id) {
+  const m = getMachine(userId, id);
+  if (!m) return null;
+  deletePhotoFile(m.photo);
+  db.prepare('UPDATE machines SET photo = NULL WHERE user_id = ? AND id = ?').run(userId, Number(id));
+  return getMachine(userId, id);
+}
+
 export function exportAll(userId) {
   const program = getProgram(userId);
   return {
@@ -285,6 +384,11 @@ export function exportAll(userId) {
     program: program ? { version: program.version, schema: program.schema, days: program.days } : null,
     workouts: listWorkouts(userId).map(({ created_at, updated_at, ...w }) => w),
     weights: listWeights(userId),
+    // Фото — файлы в data/photos, в JSON не влезают: переносим только описания.
+    gyms: listGyms(userId).map(({ id, created_at, machines, ...g }) => ({
+      ...g,
+      machines: machines.map(({ id: _i, gym_id: _g, photo: _p, ...m }) => m),
+    })),
     coach_reports: listReports(userId, 50),
     coach_requests: listRequests(userId),
   };
@@ -296,6 +400,12 @@ export function importAll(userId, data, { replace = true } = {}) {
     if (replace) {
       db.prepare('DELETE FROM workouts WHERE user_id = ?').run(userId);
       db.prepare('DELETE FROM weights WHERE user_id = ?').run(userId);
+      for (const g of listGyms(userId)) deleteGym(userId, g.id);
+    }
+    for (const g of data.gyms || []) {
+      const gym = createGym(userId, { name: g.name || 'Зал', note: g.note ?? null });
+      // Тип из чужого/старого экспорта может быть неизвестен — не теряем тренажёр, кладём его в «Другое».
+      for (const m of g.machines || []) if (m?.type) createMachine(userId, gym.id, { ...m, type: isMachineType(m.type) ? m.type : 'other' });
     }
     if (data.profile) saveProfile(userId, data.profile);
     if (data.program?.days) saveProgram(userId, { schema: data.program.schema, days: data.program.days }, { rationale: 'импорт', author: 'import' });

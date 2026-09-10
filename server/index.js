@@ -10,6 +10,7 @@ import { sendMail, MAIL_ENABLED } from './mail.js';
 import { validateProgram } from '../shared/constraints.js';
 import { suggest, nextDayType, kneeAlarm } from '../shared/progression.js';
 import { scheduleAround, missedDays, nextPlanned, adherence, normalizeSchedule, nextTypeInRotation } from '../shared/schedule.js';
+import { isMachineType, machinesByType, missingTypes } from '../shared/machine-types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8080);
@@ -165,6 +166,8 @@ api.get('/state', (req, res) => {
   const profile = store.getProfile(uid);
   const program = store.getProgram(uid);
   const now = today();
+  const gyms = store.listGyms(uid);
+  const activeGym = gyms.find((g) => g.id === profile.active_gym_id) || gyms[0] || null;
   res.json({
     version: CURRENT_VERSION,
     user: req.user,
@@ -181,6 +184,10 @@ api.get('/state', (req, res) => {
     missed: missedDays(profile, workouts, program, now, 21),
     adherence: adherence(profile, workouts, program, now),
     knee_alarm: kneeAlarm(workouts),
+    gyms,
+    active_gym_id: activeGym?.id ?? null,
+    machines_by_type: machinesByType(activeGym?.machines || []),
+    missing_types: program ? missingTypes(program, activeGym?.machines || []) : [],
   });
 });
 api.get('/version', async (req, res) => res.json(await checkForUpdate({ force: req.query.force === '1' })));
@@ -262,6 +269,72 @@ api.post('/import', (req, res) => {
   catch (e) { res.status(400).json({ error: String(e.message || e) }); }
 });
 
+// ---------- залы и тренажёры ----------
+const PHOTO_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+const rawImage = express.raw({ type: Object.keys(PHOTO_TYPES), limit: '8mb' });
+const checkType = (t) => (isMachineType(t) ? null : `неизвестный тип тренажёра «${t}»`);
+
+api.get('/gyms', (req, res) => res.json(store.listGyms(req.user.id)));
+api.post('/gyms', (req, res) => {
+  const name = String(req.body?.name || '').trim();
+  if (!name) return res.status(400).json({ error: 'нужно название зала' });
+  const gym = store.createGym(req.user.id, { name, note: req.body?.note ?? null });
+  // первый зал сразу становится активным, чтобы не заставлять переключать вручную
+  if (store.listGyms(req.user.id).length === 1) store.saveProfile(req.user.id, { active_gym_id: gym.id });
+  res.json(gym);
+});
+api.put('/gyms/:id', (req, res) => {
+  const gym = store.updateGym(req.user.id, req.params.id, req.body || {});
+  gym ? res.json(gym) : res.status(404).json({ error: 'not_found' });
+});
+api.delete('/gyms/:id', (req, res) => {
+  const ok = store.deleteGym(req.user.id, req.params.id);
+  if (ok && store.getProfile(req.user.id).active_gym_id === Number(req.params.id)) {
+    store.saveProfile(req.user.id, { active_gym_id: store.listGyms(req.user.id)[0]?.id ?? null });
+  }
+  res.json({ ok });
+});
+api.post('/gyms/:id/active', (req, res) => {
+  const gym = store.getGym(req.user.id, req.params.id);
+  if (!gym) return res.status(404).json({ error: 'not_found' });
+  res.json(store.saveProfile(req.user.id, { active_gym_id: gym.id }));
+});
+
+api.post('/gyms/:id/machines', (req, res) => {
+  const err = checkType(req.body?.type);
+  if (err) return res.status(400).json({ error: err });
+  const m = store.createMachine(req.user.id, req.params.id, req.body || {});
+  m ? res.json(m) : res.status(404).json({ error: 'not_found' });
+});
+api.put('/machines/:id', (req, res) => {
+  if (req.body?.type !== undefined) {
+    const err = checkType(req.body.type);
+    if (err) return res.status(400).json({ error: err });
+  }
+  const m = store.updateMachine(req.user.id, req.params.id, req.body || {});
+  m ? res.json(m) : res.status(404).json({ error: 'not_found' });
+});
+api.delete('/machines/:id', (req, res) => res.json({ ok: store.deleteMachine(req.user.id, req.params.id) }));
+
+api.put('/machines/:id/photo', rawImage, (req, res) => {
+  const ext = PHOTO_TYPES[(req.get('content-type') || '').split(';')[0].trim()];
+  if (!ext) return res.status(415).json({ error: 'нужен jpeg, png или webp' });
+  if (!req.body?.length) return res.status(400).json({ error: 'пустой файл' });
+  const m = store.setMachinePhoto(req.user.id, req.params.id, req.body, ext);
+  m ? res.json(m) : res.status(404).json({ error: 'not_found' });
+});
+api.get('/machines/:id/photo', (req, res) => {
+  const m = store.getMachine(req.user.id, req.params.id);
+  const file = m?.photo ? store.photoPath(m.photo) : null;
+  if (!file || !fs.existsSync(file)) return res.status(404).json({ error: 'not_found' });
+  res.setHeader('Cache-Control', 'private, no-cache');
+  res.sendFile(file);
+});
+api.delete('/machines/:id/photo', (req, res) => {
+  const m = store.clearMachinePhoto(req.user.id, req.params.id);
+  m ? res.json(m) : res.status(404).json({ error: 'not_found' });
+});
+
 // ---------- coach: пользовательская часть ----------
 api.get('/coach/reports', (req, res) => res.json(store.listReports(req.user.id, Number(req.query.limit) || 20)));
 api.post('/coach/reports/:id/seen', (req, res) => { store.markReportSeen(req.user.id, Number(req.params.id)); res.json({ ok: true }); });
@@ -305,7 +378,11 @@ admin.delete('/users/:id', (req, res) => {
 admin.post('/backup', (req, res) => res.json({ file: path.basename(runBackup()) }));
 api.use('/admin', admin);
 
-api.use((err, req, res, next) => { log('API error', err); res.status(err.type === 'entity.parse.failed' ? 400 : 500).json({ error: String(err.message || err) }); });
+api.use((err, req, res, next) => {
+  log('API error', err);
+  const status = err.type === 'entity.parse.failed' ? 400 : err.type === 'entity.too.large' ? 413 : 500;
+  res.status(status).json({ error: status === 413 ? 'файл слишком большой (максимум 8 МБ)' : String(err.message || err) });
+});
 app.use('/api', api);
 
 // ---------- static ----------

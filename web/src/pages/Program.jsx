@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { api } from '../api.js';
 import { validateProgram } from '@shared/constraints.js';
-import { Field, Confirm, fmtDate, photoUrl, useToast } from '../components/ui.jsx';
+import { Field, Confirm, fmtDate, useToast } from '../components/ui.jsx';
+import MachineButton from '../components/MachinePopup.jsx';
+import { machineTypeGroups, machineTypeLabel } from '@shared/machine-types.js';
 
 const newId = (day) => `${day.toLowerCase()}${Date.now().toString(36).slice(-4)}`;
 
@@ -28,7 +30,7 @@ export default function Program({ state, reload }) {
     const updItem = (d, i, patch) => setEdit({ ...edit, days: { ...edit.days, [d]: edit.days[d].map((it, k) => (k === i ? { ...it, ...patch } : it)) } });
     const move = (d, i, dir) => { const arr = [...edit.days[d]]; const j = i + dir; if (j < 0 || j >= arr.length) return; [arr[i], arr[j]] = [arr[j], arr[i]]; setEdit({ ...edit, days: { ...edit.days, [d]: arr } }); };
     const remove = (d, i) => setEdit({ ...edit, days: { ...edit.days, [d]: edit.days[d].filter((_, k) => k !== i) } });
-    const add = (d) => setEdit({ ...edit, days: { ...edit.days, [d]: [...edit.days[d], { id: newId(d), name: '', target_sets: 3, target_reps: 12, step: 2.5, machine: '', technique: '', photo_query: '' }] } });
+    const add = (d) => setEdit({ ...edit, days: { ...edit.days, [d]: [...edit.days[d], { id: newId(d), name: '', target_sets: 3, target_reps: 12, step: 2.5, machine: '', technique: '', machine_type: '' }] } });
     return (
       <>
         <div className="card">
@@ -66,7 +68,16 @@ export default function Program({ state, reload }) {
                 )}
                 <Field label="Тренажёр / где искать"><input value={it.machine || ''} onChange={(e) => updItem(d, i, { machine: e.target.value })} /></Field>
                 <Field label="Техника, ограничения"><textarea value={it.technique || ''} onChange={(e) => updItem(d, i, { technique: e.target.value })} /></Field>
-                <Field label="Запрос для поиска фото"><input value={it.photo_query || ''} onChange={(e) => updItem(d, i, { photo_query: e.target.value })} /></Field>
+                <Field label="Тип тренажёра">
+                  <select value={it.machine_type || ''} onChange={(e) => updItem(d, i, { machine_type: e.target.value || undefined })}>
+                    <option value="">— без тренажёра —</option>
+                    {machineTypeGroups().map(([group, types]) => (
+                      <optgroup key={group} label={group}>
+                        {types.map((t) => <option key={t.slug} value={t.slug}>{t.label}</option>)}
+                      </optgroup>
+                    ))}
+                  </select>
+                </Field>
               </div>
             ))}
             <button className="btn-sm" onClick={() => add(d)}>+ упражнение</button>
@@ -102,7 +113,7 @@ export default function Program({ state, reload }) {
                 <div><span className="muted small">{i + 1}. </span><b>{it.name}</b> {it.knee_sensitive && <span className="chip" title="чувствительно к колену">колено</span>} {it.no_progression && <span className="chip">без прогрессии</span>}</div>
                 <div className="small muted">{it.machine}</div>
                 {it.technique && <div className="small" style={{ marginTop: 4 }}>{it.technique}</div>}
-                {it.photo_query && <a className="tiny" href={photoUrl(it.photo_query)} target="_blank" rel="noreferrer">фото тренажёра ↗</a>}
+                {it.machine_type && <div className="tiny muted">{machineTypeLabel(it.machine_type)} · <MachineButton state={state} type={it.machine_type} /></div>}
               </div>
               <div className="accent small" style={{ whiteSpace: 'nowrap' }}>{it.cardio ? it.duration : `${it.target_sets}×${it.target_reps}${it.unit ? ' ' + it.unit : ''}`}</div>
             </div>

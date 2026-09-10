@@ -149,3 +149,34 @@ test('валидатор ловит запрещённое упражнение 
   assert.ok(errs.some((e) => e.includes('пустое название')));
   assert.ok(errs.some((e) => e.includes('target_sets')));
 });
+
+// --- пропуск отдельного упражнения ---
+
+test('пропущенное упражнение не двигает прогрессию', () => {
+  const done = wk('2026-09-01', 'A', 2, [ex(legPress.name, [{ w: 50, r: 10 }, { w: 50, r: 10 }, { w: 50, r: 10 }])]);
+  const skipped = wk('2026-09-04', 'A', 2, [{ name: legPress.name, skipped: true, skip_reason: 'занят тренажёр', sets: [] }]);
+  const r = suggest(legPress, [done, skipped], { today: '2026-09-05' });
+  // база остаётся от 01.09 (50 кг), а не «первый раз»
+  assert.equal(r.w, 55, 'прибавка считается от последней ВЫПОЛНЕННОЙ сессии');
+});
+
+test('пропуск не считается за «первый раз», если раньше упражнение делали', () => {
+  const done = wk('2026-09-01', 'A', 2, [ex(legCurl.name, [{ w: 25, r: 12 }, { w: 25, r: 12 }, { w: 25, r: 12 }])]);
+  const skipped = wk('2026-09-04', 'A', 2, [{ name: legCurl.name, skipped: true, sets: [] }]);
+  assert.equal(suggest(legCurl, [done, skipped], { today: '2026-09-05' }).first, undefined);
+});
+
+test('пропущенное упражнение игнорируется, даже если в нём остались подходы', () => {
+  const done = wk('2026-09-01', 'A', 2, [ex(bench.name, [{ w: 50, r: 12 }, { w: 50, r: 12 }, { w: 50, r: 12 }])]);
+  const skipped = wk('2026-09-04', 'A', 2, [{ name: bench.name, skipped: true, sets: [{ w: 90, r: 1 }] }]);
+  const r = suggest(bench, [done, skipped], { today: '2026-09-05' });
+  assert.equal(r.w, 55, 'вес 90 из пропущенного упражнения не должен становиться рабочим');
+});
+
+test('тоннаж не учитывает пропущенное упражнение', () => {
+  const w = wk('2026-09-04', 'A', 2, [
+    ex(bench.name, [{ w: 50, r: 10 }]),
+    { name: legPress.name, skipped: true, sets: [{ w: 100, r: 10 }] },
+  ]);
+  assert.equal(tonnage(w, DEFAULT_PROGRAM), 500);
+});

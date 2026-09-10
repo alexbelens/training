@@ -7,15 +7,32 @@ import Workout from './pages/Workout.jsx';
 import Program from './pages/Program.jsx';
 import Progress from './pages/Progress.jsx';
 import Coach from './pages/Coach.jsx';
+import Gyms from './pages/Gyms.jsx';
 import Settings from './pages/Settings.jsx';
 
 const TABS = [
   { id: 'workout', label: 'Тренировка', ic: '🏋️' },
   { id: 'program', label: 'Программа', ic: '📋' },
   { id: 'progress', label: 'Прогресс', ic: '📈' },
+  { id: 'gyms', label: 'Залы', ic: '🏟' },
   { id: 'coach', label: 'Тренер', ic: '🧠' },
   { id: 'settings', label: 'Настройки', ic: '⚙️' },
 ];
+
+/** Переключатель активного зала: от него зависит, чьи тренажёры и фото видно в программе и тренировке. */
+function GymSwitch({ state, reload }) {
+  const gyms = state.gyms || [];
+  if (gyms.length < 2) return null;
+  return (
+    <select
+      className="gym-switch"
+      value={state.active_gym_id ?? ''}
+      onChange={async (e) => { await api.post(`/api/gyms/${e.target.value}/active`); await reload(); }}
+    >
+      {gyms.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+    </select>
+  );
+}
 
 export default function App() {
   const [info, setInfo] = useState(null);
@@ -45,7 +62,7 @@ export default function App() {
   if (!state) return <div className="app muted">Загрузка…</div>;
 
   const unread = state.reports.filter((r) => !r.seen).length;
-  const Page = { workout: Workout, program: Program, progress: Progress, coach: Coach, settings: Settings }[tab];
+  const Page = { workout: Workout, program: Program, progress: Progress, gyms: Gyms, coach: Coach, settings: Settings }[tab];
 
   return (
     <ToastProvider>
@@ -63,7 +80,10 @@ export default function App() {
       <div className="app">
         <div className="topbar">
           <span className="brand">Training</span>
-          <span className="small muted">{state.profile.name || state.user.login}</span>
+          <div className="row">
+            <GymSwitch state={state} reload={reload} />
+            <span className="small muted">{state.profile.name || state.user.login}</span>
+          </div>
         </div>
         <UpdateBanner />
         {!state.profile.onboarded && tab !== 'settings' && (

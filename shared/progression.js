@@ -29,6 +29,7 @@ export function sessionsFor(exercise, workouts) {
     const ex = (w.exercises || []).find(
       (e) => (exercise.id && e.program_id === exercise.id) || normName(e.name) === name
     );
+    if (ex?.skipped) continue; // пропущенное упражнение прогрессию не двигает
     if (ex && Array.isArray(ex.sets) && ex.sets.length > 0) {
       out.push({ workout: w, exercise: ex });
     }
@@ -133,6 +134,7 @@ export function tonnage(workout, program) {
   let t = 0;
   if (workout?.status === 'skipped') return 0;
   for (const ex of workout.exercises || []) {
+    if (ex?.skipped) continue;
     const item = findProgramItem(program, ex);
     const mult = item?.per_hand ? 2 : 1;
     for (const s of ex.sets || []) t += (Number(s.w) || 0) * (Number(s.r) || 0) * mult;

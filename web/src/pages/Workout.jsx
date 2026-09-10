@@ -2,7 +2,19 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { suggest, tonnage } from '@shared/progression.js';
 import { DOW_SHORT, DOW_FULL, weeklyCount } from '@shared/schedule.js';
-import { Field, Confirm, fmtDate, today, photoUrl, useToast } from '../components/ui.jsx';
+import { Field, Confirm, fmtDate, today, useToast } from '../components/ui.jsx';
+import MachineButton from '../components/MachinePopup.jsx';
+
+// Черновик тренировки переживает обновление страницы, закрытие вкладки и разряженный телефон.
+// Живёт только в этом браузере — на сервер уходит уже готовая запись.
+const DRAFT_KEY = 'workout-draft';
+const readDraft = () => { try { const s = localStorage.getItem(DRAFT_KEY); return s ? JSON.parse(s) : null; } catch { return null; } };
+const writeDraft = (w) => { try { w ? localStorage.setItem(DRAFT_KEY, JSON.stringify(w)) : localStorage.removeItem(DRAFT_KEY); } catch {} };
+/** Есть ли что терять: заполненный подход, заметка, боль или отметка «готово». */
+const hasData = (w) => !!w && (
+  w.pain != null || (w.notes || '').trim() !== '' ||
+  (w.exercises || []).some((e) => e.done || e.skipped || (e.duration || '') !== '' || (e.sets || []).some((s) => s.w !== '' || s.r !== ''))
+);
 
 function blankFromProgram(items, suggestions) {
   return items.map((it) => {
@@ -19,7 +31,8 @@ function blankFromProgram(items, suggestions) {
 export default function Workout({ state, reload, setTab }) {
   const toast = useToast();
   const { program, profile, workouts, next_day, next_planned, missed = [], adherence } = state;
-  const [editing, setEditing] = useState(null); // {id?, date, type, exercises, pain, notes}
+  const [editing, setEditing] = useState(readDraft); // {id?, date, type, exercises, pain, notes}
+  useEffect(() => { writeDraft(editing); }, [editing]);
   const planned = next_planned;
   const [day, setDay] = useState(planned?.suggested_type || next_day || 'A');
   const [date, setDate] = useState(planned?.status === 'today' ? planned.date : (state.today || today()));
@@ -45,7 +58,7 @@ export default function Workout({ state, reload, setTab }) {
     catch (e) { toast(e.message); }
   }
 
-  if (editing) return <Editor w={editing} setW={setEditing} program={program} suggestions={editing.id ? {} : suggestions} onClose={() => setEditing(null)} reload={reload} toast={toast} />;
+  if (editing) return <Editor w={editing} setW={setEditing} state={state} program={program} suggestions={editing.id ? {} : suggestions} onClose={() => setEditing(null)} reload={reload} toast={toast} />;
 
   const sorted = [...workouts].sort((a, b) => String(b.date).localeCompare(String(a.date)) || b.id - a.id);
   return (
@@ -103,8 +116,11 @@ export default function Workout({ state, reload, setTab }) {
         ) : (
           <div key={w.id} className="list-item" onClick={() => openExisting(w)} style={{ cursor: 'pointer' }}>
             <div>
-              <div><b>{fmtDate(w.date)}</b> · {DOW_SHORT[dowNum(w.date)]} · день {w.type} <span className="muted small">· {w.exercises.filter((e) => e.done).length}/{w.exercises.length} упр.</span></div>
+              <div><b>{fmtDate(w.date)}</b> · {DOW_SHORT[dowNum(w.date)]} · день {w.type} <span className="muted small">· {w.exercises.filter((e) => e.done).length}/{w.exercises.filter((e) => !e.skipped).length} упр.</span></div>
               <div className="small muted">тоннаж {Math.round(tonnage(w, program))} кг{w.pain != null ? ` · колено ${w.pain}/10` : ' · боль не указана'}</div>
+              {w.exercises.filter((e) => e.skipped).map((e, k) => (
+                <div key={k} className="tiny muted">пропущено: {e.name}{e.skip_reason ? ` — ${e.skip_reason}` : ''}</div>
+              ))}
             </div>
             <span className="muted">›</span>
           </div>
@@ -184,7 +200,7 @@ function PlanCard({ className = '', planned, missed, adherence, onStart, onSkip,
   );
 }
 
-function Editor({ w, setW, program, suggestions, onClose, reload, toast }) {
+function Editor({ w, setW, state, program, suggestions, onClose, reload, toast }) {
   const [busy, setBusy] = useState(false);
   const items = program?.days?.[w.type] || [];
   const itemById = Object.fromEntries(items.map((i) => [i.id, i]));
@@ -195,7 +211,11 @@ function Editor({ w, setW, program, suggestions, onClose, reload, toast }) {
     if (w.pain == null) { toast('Отметь боль в колене (0–10) — это обязательное поле'); return; }
     setBusy(true);
     try {
-      const body = { ...w, exercises: w.exercises.map((e) => ({ ...e, sets: e.sets.filter((s) => s.w !== '' || s.r !== '').map((s) => ({ w: Number(s.w) || 0, r: Number(s.r) || 0 })) })) };
+      const body = { ...w, exercises: w.exercises.map((e) => (
+        e.skipped
+          ? { ...e, done: false, sets: [], skip_reason: (e.skip_reason || '').trim() }
+          : { ...e, sets: e.sets.filter((s) => s.w !== '' || s.r !== '').map((s) => ({ w: Number(s.w) || 0, r: Number(s.r) || 0 })) }
+      )) };
       if (w.id) await api.put(`/api/workouts/${w.id}`, body); else await api.post('/api/workouts', body);
       toast('Сохранено'); await reload(); onClose();
     } catch (e) { toast('Ошибка: ' + e.message); } finally { setBusy(false); }
@@ -207,12 +227,15 @@ function Editor({ w, setW, program, suggestions, onClose, reload, toast }) {
       <div className="card">
         <div className="row between">
           <h2>{w.id ? 'Тренировка' : 'Новая'} · день {w.type}</h2>
-          <button className="btn-sm btn-ghost" onClick={onClose}>Закрыть</button>
+          {hasData(w)
+            ? <Confirm className="btn-sm btn-ghost" text="Выйти и стереть?" onYes={onClose}>Закрыть</Confirm>
+            : <button className="btn-sm btn-ghost" onClick={onClose}>Закрыть</button>}
         </div>
         <div className="grid2">
           <Field label="Дата"><input type="date" value={w.date} onChange={(e) => setW({ ...w, date: e.target.value })} /></Field>
           <Field label="День"><select value={w.type} onChange={(e) => setW({ ...w, type: e.target.value })}>{Object.keys(program?.days || {}).map((d) => <option key={d}>{d}</option>)}</select></Field>
         </div>
+        <div className="tiny muted">Черновик сохраняется сам — можно обновить страницу или закрыть вкладку, введённое останется.</div>
       </div>
 
       <div className="ex-grid">
@@ -221,14 +244,27 @@ function Editor({ w, setW, program, suggestions, onClose, reload, toast }) {
         const s = suggestions[ex.program_id];
         const cardio = it?.cardio || (!ex.sets?.length && it?.cardio !== false && /разминка|заминка|эллипс|дорожк|ходьба|вело/i.test(ex.name));
         return (
-          <div key={i} className={'card' + (ex.done ? ' done' : '')}>
+          <div key={i} className={'card' + (ex.done ? ' done' : '') + (ex.skipped ? ' skipped-ex' : '')}>
             <div className="row between">
               <div className="grow">
                 <div className="ex-title">{ex.name}</div>
-                {it && <div className="tiny muted">{it.machine}{it.photo_query ? <> · <a href={photoUrl(it.photo_query)} target="_blank" rel="noreferrer">фото</a></> : null}</div>}
+                {it && <div className="tiny muted">{it.machine}{it.machine_type ? <> · <MachineButton state={state} type={it.machine_type} label="фото" /></> : null}</div>}
               </div>
-              <button className={'btn-sm ' + (ex.done ? 'btn-primary' : '')} onClick={() => upd(i, { done: !ex.done })}>{ex.done ? '✓' : 'готово'}</button>
+              <div className="row">
+                {!ex.skipped && <button className={'btn-sm ' + (ex.done ? 'btn-primary' : '')} onClick={() => upd(i, { done: !ex.done })}>{ex.done ? '✓' : 'готово'}</button>}
+                <button className="btn-sm btn-ghost" title={ex.skipped ? 'Вернуть упражнение' : 'Пропустить упражнение'}
+                  onClick={() => upd(i, ex.skipped ? { skipped: false, skip_reason: '' } : { skipped: true, done: false })}>
+                  {ex.skipped ? 'вернуть' : 'пропустить'}
+                </button>
+              </div>
             </div>
+            {ex.skipped ? (
+              <Field label="Почему пропустил (попадёт в историю)">
+                <input value={ex.skip_reason || ''} onChange={(e) => upd(i, { skip_reason: e.target.value })}
+                  placeholder="занят тренажёр, боль, нет времени…" />
+              </Field>
+            ) : (
+            <>
             {it?.technique && <details><summary>техника</summary><p className="small muted">{it.technique}</p></details>}
             {s && !s.first && (
               <div className="sugg" style={{ margin: '8px 0' }}>
@@ -253,6 +289,8 @@ function Editor({ w, setW, program, suggestions, onClose, reload, toast }) {
                 ))}
                 <button className="btn-sm btn-ghost" onClick={() => upd(i, { sets: [...ex.sets, { w: ex.sets.at(-1)?.w ?? '', r: '' }] })}>+ подход</button>
               </div>
+            )}
+            </>
             )}
           </div>
         );

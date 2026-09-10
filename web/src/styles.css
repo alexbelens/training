@@ -136,3 +136,25 @@ pre.md { white-space: pre-wrap; font-family: var(--font); font-size: .9rem; line
   .auth { margin-top: 12vh; }
 }
 @media (min-width: 1300px) { .ex-grid { grid-template-columns: repeat(3, 1fr); } }
+
+/* ---------- залы, тренажёры, попап ---------- */
+.link-btn { background: none; border: 0; padding: 0; margin: 0 10px 0 0; color: var(--accent); font: inherit; font-size: inherit; cursor: pointer; text-decoration: underline dotted; }
+.link-btn:disabled { color: var(--muted); cursor: default; text-decoration: none; }
+
+.gym-switch { background: var(--card2); color: var(--text); border: 1px solid var(--line); border-radius: 10px; font: inherit; font-size: .8rem; padding: 4px 8px; max-width: 46vw; }
+
+.gym-active { border-color: var(--accent); }
+
+.machine-row { align-items: flex-start; gap: 10px; }
+.machine-thumb { width: 64px; height: 64px; flex: 0 0 64px; border-radius: 10px; object-fit: cover; background: var(--card2); cursor: pointer; }
+.machine-thumb.empty { display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 1.4rem; border: 1px dashed var(--line); }
+
+.modal-back { position: fixed; inset: 0; background: rgba(0,0,0,.66); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 40; }
+.modal { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); width: min(520px, 100%); max-height: 86dvh; display: flex; flex-direction: column; }
+.modal-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.modal-body { padding: 14px; overflow: auto; }
+.machine-photo { width: 100%; max-height: 56dvh; object-fit: contain; border-radius: 10px; background: var(--card2); display: block; }
+.machine-photo.empty { display: flex; align-items: center; justify-content: center; min-height: 120px; border: 1px dashed var(--line); text-align: center; padding: 12px; }
+.machine-title { margin-top: 8px; font-weight: 600; }
+
+.skipped-ex { opacity: .6; border-style: dashed; }

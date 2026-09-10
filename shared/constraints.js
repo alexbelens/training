@@ -1,5 +1,6 @@
 // Валидатор программы против жёстких ограничений профиля (раздел 3 спеки).
 import { normName } from './progression.js';
+import { isMachineType } from './machine-types.js';
 
 export const DEFAULT_FORBIDDEN = [
   'наклонный жим ногами',
@@ -36,6 +37,7 @@ export function validateProgram(program, profile = {}) {
         if (!(Number(it.target_sets) > 0)) errors.push(`${where}: target_sets должен быть > 0`);
         if (!(Number(it.target_reps) > 0)) errors.push(`${where}: target_reps должен быть > 0`);
       }
+      if (it.machine_type && !isMachineType(it.machine_type)) errors.push(`${where}: неизвестный тип тренажёра «${it.machine_type}»`);
       const n = normName(it.name);
       for (const f of forbidden) {
         if (n.includes(f)) errors.push(`${where}: «${it.name}» попадает под запрет «${f}»`);
