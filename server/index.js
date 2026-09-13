@@ -208,8 +208,25 @@ api.put('/profile', (req, res) => {
 api.get('/program', (req, res) => res.json(store.getProgram(req.user.id)));
 api.get('/program/history', (req, res) => res.json(store.programHistory(req.user.id)));
 api.get('/program/:id', (req, res) => { const p = store.getProgramVersion(req.user.id, Number(req.params.id)); p ? res.json(p) : res.status(404).json({ error: 'not_found' }); });
+/** Поля, которые легко потерять при пересборке программы: их доносим из прошлой версии по id. */
+const INHERITED_ITEM_FIELDS = ['machine_type', 'per_side', 'per_hand', 'step', 'knee_sensitive', 'no_progression', 'warmup', 'bodyweight', 'unit'];
+function inheritItemFields(program, previous) {
+  if (!previous?.days) return program;
+  const old = {};
+  for (const items of Object.values(previous.days)) for (const it of items) if (it?.id) old[it.id] = it;
+  for (const items of Object.values(program.days || {})) {
+    for (const it of items) {
+      const prev = it?.id ? old[it.id] : null;
+      if (!prev) continue;
+      for (const f of INHERITED_ITEM_FIELDS) if (it[f] === undefined && prev[f] !== undefined) it[f] = prev[f];
+    }
+  }
+  return program;
+}
+
 api.put('/program', (req, res) => {
-  const { rationale, author, ...program } = req.body || {};
+  const { rationale, author, ...body } = req.body || {};
+  const program = inheritItemFields(body, store.getProgram(req.user.id));
   const errors = validateProgram(program, store.getProfile(req.user.id));
   if (errors.length) return res.status(400).json({ error: 'invalid_program', errors });
   res.json(store.saveProgram(req.user.id, program, { rationale: rationale || null, author: req.coach ? 'coach' : 'user' }));
