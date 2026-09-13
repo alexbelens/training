@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { api } from '../api.js';
-import { Field, Confirm, useToast } from '../components/ui.jsx';
+import { Field, Confirm, useToast, asDecimal } from '../components/ui.jsx';
 import { MachinePopup } from '../components/MachinePopup.jsx';
 import { MACHINE_TYPES, machineTypeGroups, machineTypeLabel, missingTypes } from '@shared/machine-types.js';
 
@@ -47,6 +47,18 @@ function Machine({ m, onChanged, onPreview }) {
         <Field label="Производитель / модель"><input value={f.vendor || ''} onChange={(e) => setF({ ...f, vendor: e.target.value })} placeholder="Matrix, Technogym…" /></Field>
         <Field label="Заметка"><input value={f.note || ''} onChange={(e) => setF({ ...f, note: e.target.value })} placeholder="Где стоит, особенности настройки" /></Field>
         <div className="row">
+          <Field label="Шаг веса, кг">
+            <input type="text" inputMode="decimal" value={f.step ?? ''} onChange={(e) => setF({ ...f, step: asDecimal(e.target.value) })} placeholder="5" />
+          </Field>
+          <Field label="Минимум, кг">
+            <input type="text" inputMode="decimal" value={f.min_weight ?? ''} onChange={(e) => setF({ ...f, min_weight: asDecimal(e.target.value) })} placeholder="—" />
+          </Field>
+          <Field label="Максимум, кг">
+            <input type="text" inputMode="decimal" value={f.max_weight ?? ''} onChange={(e) => setF({ ...f, max_weight: asDecimal(e.target.value) })} placeholder="—" />
+          </Field>
+        </div>
+        <p className="tiny muted">Шаг — на сколько отличаются соседние плитки стека или блины. Рекомендации будут округляться так, чтобы такой вес реально можно было поставить.</p>
+        <div className="row">
           <button className="btn-sm btn-primary" onClick={save}>Сохранить</button>
           <button className="btn-sm btn-ghost" onClick={() => { setF(m); setEdit(false); }}>Отмена</button>
         </div>
@@ -63,6 +75,7 @@ function Machine({ m, onChanged, onPreview }) {
         <div><b>{m.name || machineTypeLabel(m.type)}</b>{m.vendor ? <span className="muted small"> · {m.vendor}</span> : null}</div>
         <div className="tiny muted">{machineTypeLabel(m.type)}</div>
         {m.note && <div className="small" style={{ marginTop: 2 }}>{m.note}</div>}
+        {m.step ? <div className="tiny muted">шаг {m.step} кг{m.min_weight ? `, от ${m.min_weight}` : ''}{m.max_weight ? ` до ${m.max_weight}` : ''}</div> : null}
         <div className="row" style={{ marginTop: 4 }}>
           <button className="link-btn tiny" onClick={() => fileRef.current?.click()} disabled={busy}>{busy ? 'загрузка…' : m.photo ? 'заменить фото' : 'добавить фото'}</button>
           {m.photo && <button className="link-btn tiny" onClick={dropPhoto}>убрать фото</button>}

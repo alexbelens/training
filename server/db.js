@@ -107,6 +107,9 @@ CREATE TABLE IF NOT EXISTS machines (
   vendor TEXT,
   note TEXT,
   photo TEXT,
+  step REAL,
+  min_weight REAL,
+  max_weight REAL,
   created_at TEXT NOT NULL DEFAULT (${NOW})
 );
 CREATE INDEX IF NOT EXISTS machines_gym ON machines(gym_id);
@@ -118,6 +121,9 @@ function addColumn(table, column, definition) {
   if (!cols.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
 }
 addColumn('workouts', 'status', "TEXT NOT NULL DEFAULT 'done'");
+addColumn('machines', 'step', 'REAL');
+addColumn('machines', 'min_weight', 'REAL');
+addColumn('machines', 'max_weight', 'REAL');
 
 const j = (v) => JSON.stringify(v);
 const p = (s, fallback = null) => { try { return s == null ? fallback : JSON.parse(s); } catch { return fallback; } };
@@ -302,7 +308,7 @@ export function closeRequest(userId, id, reportId = null) {
 // ---------- export / import (формат раздела 6 спеки) ----------
 // ---------- залы и тренажёры ----------
 const machineRows = (userId, gymId) =>
-  db.prepare('SELECT id, gym_id, type, name, vendor, note, photo FROM machines WHERE user_id = ? AND gym_id = ? ORDER BY id').all(userId, gymId);
+  db.prepare('SELECT id, gym_id, type, name, vendor, note, photo, step, min_weight, max_weight FROM machines WHERE user_id = ? AND gym_id = ? ORDER BY id').all(userId, gymId);
 
 export function listGyms(userId) {
   return db.prepare('SELECT id, name, note, created_at FROM gyms WHERE user_id = ? ORDER BY id').all(userId)
@@ -329,20 +335,22 @@ export function deleteGym(userId, id) {
 }
 
 export function getMachine(userId, id) {
-  return db.prepare('SELECT id, gym_id, type, name, vendor, note, photo FROM machines WHERE user_id = ? AND id = ?').get(userId, Number(id)) || null;
+  return db.prepare('SELECT id, gym_id, type, name, vendor, note, photo, step, min_weight, max_weight FROM machines WHERE user_id = ? AND id = ?').get(userId, Number(id)) || null;
 }
-export function createMachine(userId, gymId, { type, name = null, vendor = null, note = null }) {
+export function createMachine(userId, gymId, { type, name = null, vendor = null, note = null, step = null, min_weight = null, max_weight = null }) {
   if (!getGym(userId, gymId)) return null;
-  const id = db.prepare('INSERT INTO machines(user_id, gym_id, type, name, vendor, note) VALUES(?, ?, ?, ?, ?, ?)')
-    .run(userId, Number(gymId), String(type), name, vendor, note).lastInsertRowid;
+  const num = (x) => { if (x === null || x === undefined || x === '') return null; const n = Number(String(x).replace(',', '.')); return Number.isFinite(n) ? n : null; };
+  const id = db.prepare('INSERT INTO machines(user_id, gym_id, type, name, vendor, note, step, min_weight, max_weight) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(userId, Number(gymId), String(type), name, vendor, note, num(step), num(min_weight), num(max_weight)).lastInsertRowid;
   return getMachine(userId, id);
 }
 export function updateMachine(userId, id, patch) {
   const m = getMachine(userId, id);
   if (!m) return null;
   const v = (k) => (patch[k] !== undefined ? patch[k] : m[k]);
-  db.prepare('UPDATE machines SET type = ?, name = ?, vendor = ?, note = ? WHERE user_id = ? AND id = ?')
-    .run(String(v('type')), v('name'), v('vendor'), v('note'), userId, Number(id));
+  const num = (x) => { if (x === null || x === undefined || x === '') return null; const n = Number(String(x).replace(',', '.')); return Number.isFinite(n) ? n : null; };
+  db.prepare('UPDATE machines SET type = ?, name = ?, vendor = ?, note = ?, step = ?, min_weight = ?, max_weight = ? WHERE user_id = ? AND id = ?')
+    .run(String(v('type')), v('name'), v('vendor'), v('note'), num(v('step')), num(v('min_weight')), num(v('max_weight')), userId, Number(id));
   return getMachine(userId, id);
 }
 export function deleteMachine(userId, id) {

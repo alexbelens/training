@@ -194,3 +194,22 @@ test('тоннаж считает обе стороны рычажного тр�
   const w = { date: '2026-09-13', type: 'B', exercises: [{ program_id: 'b6', name: 'Жим на плечи (рычажный)', sets: [{ w: 17.5, r: 12 }] }] };
   assert.equal(tonnage(w, program), 17.5 * 12 * 2);
 });
+
+test('шаг тренажёра важнее шага упражнения', () => {
+  const curl = { id: 'b7', name: 'Сгибание рук', target_sets: 3, target_reps: 12, step: 2.5 };
+  const hist = [{ id: 1, date: '2026-09-08', type: 'B', pain: 2, exercises: [{ name: 'Сгибание рук', done: true, sets: [{ w: 25, r: 12 }, { w: 25, r: 12 }, { w: 25, r: 12 }] }] }];
+  assert.equal(suggest(curl, hist).w, 27.5, 'без тренажёра берётся шаг упражнения');
+  assert.equal(suggest(curl, hist, { machineStep: 5 }).w, 30, 'на стеке с плитками по 5 кг — 30');
+});
+
+test('снижение при боли тоже укладывается в шаг тренажёра', () => {
+  const press = { id: 'a2', name: 'Жим ногами', target_sets: 3, target_reps: 10, knee_sensitive: true, step: 5 };
+  const hist = [{ id: 1, date: '2026-09-08', type: 'A', pain: 7, exercises: [{ name: 'Жим ногами', done: true, sets: [{ w: 60, r: 10 }, { w: 60, r: 10 }, { w: 60, r: 10 }] }] }];
+  assert.equal(suggest(press, hist, { machineStep: 10 }).w, 40, '60 × 0.7 = 42 → вниз до 40');
+});
+
+test('для веса на сторону шаг тренажёра делится пополам', () => {
+  const shoulder = { id: 'b6', name: 'Жим на плечи', target_sets: 3, target_reps: 12, per_side: true, step: 2.5 };
+  const hist = [{ id: 1, date: '2026-09-08', type: 'B', pain: 2, exercises: [{ name: 'Жим на плечи', done: true, sets: [{ w: 15, r: 12 }, { w: 15, r: 12 }, { w: 15, r: 12 }] }] }];
+  assert.equal(suggest(shoulder, hist, { machineStep: 5 }).w, 17.5, 'блин 2,5 на каждую сторону = 5 суммарно');
+});

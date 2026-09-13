@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { suggest, tonnage, weightUnit } from '@shared/progression.js';
 import { DOW_SHORT, DOW_FULL, weeklyCount } from '@shared/schedule.js';
+import { machineStepFor } from '@shared/machine-types.js';
 import { Field, Confirm, fmtDate, today, useToast } from '../components/ui.jsx';
 import MachineButton from '../components/MachinePopup.jsx';
 
@@ -46,15 +47,16 @@ export default function Workout({ state, reload, setTab }) {
   const [day, setDay] = useState(planned?.suggested_type || next_day || 'A');
   const [date, setDate] = useState(planned?.status === 'today' ? planned.date : (state.today || today()));
   const dayItems = program?.days?.[day] || [];
+  const byType = state.machines_by_type || {};
   const suggestions = useMemo(
-    () => Object.fromEntries(dayItems.map((it) => [it.id, suggest(it, workouts, { adaptation: !!profile.adaptation_period, today: date })])),
-    [dayItems, workouts, profile.adaptation_period, date]
+    () => Object.fromEntries(dayItems.map((it) => [it.id, suggest(it, workouts, { adaptation: !!profile.adaptation_period, today: date, machineStep: machineStepFor(byType, it) })])),
+    [dayItems, workouts, profile.adaptation_period, date, byType]
   );
   const perWeek = weeklyCount(profile);
 
   function start(d = date, type = day) {
     const items = program?.days?.[type] || [];
-    const sugg = Object.fromEntries(items.map((it) => [it.id, suggest(it, workouts, { adaptation: !!profile.adaptation_period, today: d })]));
+    const sugg = Object.fromEntries(items.map((it) => [it.id, suggest(it, workouts, { adaptation: !!profile.adaptation_period, today: d, machineStep: machineStepFor(state.machines_by_type || {}, it) })]));
     setEditing({ date: d, type, exercises: blankFromProgram(items, sugg), pain: null, notes: '' });
     window.scrollTo(0, 0);
   }

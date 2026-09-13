@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isMachineType, machineTypeLabel, machinesByType, missingTypes, MACHINE_TYPES } from '../shared/machine-types.js';
+import { isMachineType, machineTypeLabel, machinesByType, missingTypes, MACHINE_TYPES, machineStepFor } from '../shared/machine-types.js';
 import { validateProgram } from '../shared/constraints.js';
 import { DEFAULT_PROGRAM } from '../shared/default-program.js';
 
@@ -59,4 +59,12 @@ test('machineTypeLabel не падает на неизвестном слаге'
   assert.equal(machineTypeLabel('bike'), 'Велотренажёр');
   assert.equal(machineTypeLabel('нет_такого'), 'нет_такого');
   assert.equal(machineTypeLabel(null), '');
+});
+
+test('шаг берётся у тренажёра активного зала', () => {
+  const byType = machinesByType([{ id: 1, type: 'biceps_curl', step: 5 }, { id: 2, type: 'lat_pulldown' }]);
+  assert.equal(machineStepFor(byType, { machine_type: 'biceps_curl' }), 5);
+  assert.equal(machineStepFor(byType, { machine_type: 'lat_pulldown' }), 0, 'шаг не задан');
+  assert.equal(machineStepFor(byType, { machine_type: 'unknown' }), 0);
+  assert.equal(machineStepFor({}, {}), 0);
 });

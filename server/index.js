@@ -10,7 +10,7 @@ import { sendMail, MAIL_ENABLED } from './mail.js';
 import { validateProgram } from '../shared/constraints.js';
 import { suggest, nextDayType, kneeAlarm } from '../shared/progression.js';
 import { scheduleAround, missedDays, nextPlanned, adherence, normalizeSchedule, nextTypeInRotation } from '../shared/schedule.js';
-import { isMachineType, machinesByType, missingTypes } from '../shared/machine-types.js';
+import { isMachineType, machinesByType, missingTypes, machineStepFor } from '../shared/machine-types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8080);
@@ -225,8 +225,11 @@ api.get('/suggest/:day', (req, res) => {
   const uid = req.user.id;
   const program = store.getProgram(uid), profile = store.getProfile(uid), workouts = store.listWorkouts(uid);
   const items = program?.days?.[req.params.day] || [];
+  const gyms = store.listGyms(uid);
+  const activeGym = gyms.find((g) => g.id === profile.active_gym_id) || gyms[0] || null;
+  const byType = machinesByType(activeGym?.machines || []);
   const opts = { adaptation: !!profile.adaptation_period, today: req.query.date || today() };
-  res.json(Object.fromEntries(items.map((it) => [it.id, suggest(it, workouts, opts)])));
+  res.json(Object.fromEntries(items.map((it) => [it.id, suggest(it, workouts, { ...opts, machineStep: machineStepFor(byType, it) })])));
 });
 
 // ---------- workouts ----------

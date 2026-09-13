@@ -51,6 +51,9 @@ export function normName(n) {
  */
 export function suggest(exercise, workouts, opts = {}) {
   if (!exercise || exercise.cardio) return null;
+  // Шаг тренажёра важнее шага упражнения: на стеке с плитками по 5 кг веса 27,5 просто нет.
+  // Для веса на сторону шаг тренажёра делим пополам — блины вешаются на каждую ручку отдельно.
+  const machineStep = Number(opts.machineStep) || 0;
   const targetSets = Number(exercise.target_sets) || 3;
   const targetReps = Number(exercise.target_reps) || 12;
   const sets = opts.adaptation ? Math.min(2, targetSets) : targetSets;
@@ -63,7 +66,7 @@ export function suggest(exercise, workouts, opts = {}) {
   const w = workingWeight(last.exercise.sets);
   if (w === 0) return null; // упражнение без веса — рекомендации нет
 
-  const step = Number(exercise.step) || 2.5;
+  const step = machineStep > 0 ? (exercise.per_side ? machineStep / 2 : machineStep) : (Number(exercise.step) || 2.5);
   const pain = Number(last.workout.pain);
   const painKnown = Number.isFinite(pain);
   const knee = !!exercise.knee_sensitive;

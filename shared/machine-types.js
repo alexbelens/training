@@ -76,3 +76,10 @@ export function missingTypes(program, machines = []) {
   }
   return [...need];
 }
+
+/** Шаг стека того тренажёра активного зала, на котором делается упражнение (0 — не задан). */
+export function machineStepFor(byType, item) {
+  const entry = item?.machine_type ? byType?.[item.machine_type] : null;
+  const step = entry?.machine?.step ?? entry?.step;
+  return Number(step) > 0 ? Number(step) : 0;
+}
