@@ -202,13 +202,33 @@ function PlanCard({ className = '', planned, missed, adherence, onStart, onSkip,
 
 function Editor({ w, setW, state, program, suggestions, onClose, reload, toast }) {
   const [busy, setBusy] = useState(false);
+  const [warn, setWarn] = useState(0);
   const items = program?.days?.[w.type] || [];
   const itemById = Object.fromEntries(items.map((i) => [i.id, i]));
-  const upd = (i, patch) => setW({ ...w, exercises: w.exercises.map((e, k) => (k === i ? { ...e, ...patch } : e)) });
-  const updSet = (i, j, patch) => upd(i, { sets: w.exercises[i].sets.map((s, k) => (k === j ? { ...s, ...patch } : s)) });
+  // Обновляемся только через функциональную форму: два быстрых изменения подряд
+  // (вес → повторы, переход по «Далее» на клавиатуре) иначе строятся из устаревшего w и затирают друг друга.
+  const upd = (i, patch) => setW((prev) => ({ ...prev, exercises: prev.exercises.map((e, k) => (k === i ? { ...e, ...patch } : e)) }));
+  const updSet = (i, j, patch) => setW((prev) => ({
+    ...prev,
+    exercises: prev.exercises.map((e, k) => (k === i ? { ...e, sets: e.sets.map((st, m) => (m === j ? { ...st, ...patch } : st)) } : e)),
+  }));
+  const updSets = (i, fn) => setW((prev) => ({ ...prev, exercises: prev.exercises.map((e, k) => (k === i ? { ...e, sets: fn(e.sets) } : e)) }));
 
-  async function save() {
+  /** Подходы, где есть вес, но не заполнены повторы: обычно это незаписанные данные, а не ноль. */
+  function setsWithoutReps(x) {
+    let n = 0;
+    for (const e of x.exercises || []) {
+      if (e.skipped) continue;
+      for (const st of e.sets || []) if ((st.w !== '' && Number(st.w) > 0) && (st.r === '' || Number(st.r) === 0)) n++;
+    }
+    return n;
+  }
+
+  async function save(force = false) {
     if (w.pain == null) { toast('Отметь боль в колене (0–10) — это обязательное поле'); return; }
+    const empty = setsWithoutReps(w);
+    if (empty > 0 && !force) { setWarn(empty); return; }
+    setWarn(0);
     setBusy(true);
     try {
       const body = { ...w, exercises: w.exercises.map((e) => (
@@ -269,7 +289,7 @@ function Editor({ w, setW, state, program, suggestions, onClose, reload, toast }
             {s && !s.first && (
               <div className="sugg" style={{ margin: '8px 0' }}>
                 <span>Рекомендация: <b>{s.w}{it?.per_hand ? ' кг/рука' : ' кг'} × {s.reps} × {s.sets}</b>{s.warmup ? <span className="muted"> · разминка {s.warmup}</span> : null}<div className="tiny muted">{s.note}</div></span>
-                <button className="btn-sm" onClick={() => upd(i, { sets: Array.from({ length: s.sets }, (_, k) => ex.sets[k] ? { ...ex.sets[k], w: s.w } : { w: s.w, r: '' }) })}>применить</button>
+                <button className="btn-sm" onClick={() => updSets(i, (sets) => Array.from({ length: s.sets }, (_, k) => (sets[k] ? { ...sets[k], w: s.w } : { w: s.w, r: '' })))}>применить</button>
               </div>
             )}
             {s?.first && <div className="sugg" style={{ margin: '8px 0' }}><span className="small">{s.note}</span></div>}
@@ -284,10 +304,10 @@ function Editor({ w, setW, state, program, suggestions, onClose, reload, toast }
                     <input className="num" type="number" inputMode="decimal" step="0.5" value={st.w} placeholder="0" onChange={(e) => updSet(i, j, { w: e.target.value })} />
                     <span className="x">×</span>
                     <input className="num" type="number" inputMode="numeric" value={st.r} placeholder={String(it?.target_reps || '')} onChange={(e) => updSet(i, j, { r: e.target.value })} />
-                    <button className="btn-sm btn-ghost" onClick={() => upd(i, { sets: ex.sets.filter((_, k) => k !== j) })}>✕</button>
+                        <button className="btn-sm btn-ghost" onClick={() => updSets(i, (sets) => sets.filter((_, k) => k !== j))}>✕</button>
                   </div>
                 ))}
-                <button className="btn-sm btn-ghost" onClick={() => upd(i, { sets: [...ex.sets, { w: ex.sets.at(-1)?.w ?? '', r: '' }] })}>+ подход</button>
+                <button className="btn-sm btn-ghost" onClick={() => updSets(i, (sets) => [...sets, { w: sets.at(-1)?.w ?? '', r: '' }])}>+ подход</button>
               </div>
             )}
             </>
@@ -302,8 +322,16 @@ function Editor({ w, setW, state, program, suggestions, onClose, reload, toast }
         <div className="pain">{Array.from({ length: 11 }, (_, n) => <button key={n} className={w.pain === n ? 'active' : ''} onClick={() => setW({ ...w, pain: n })}>{n}</button>)}</div>
         <p className="tiny muted">0 — нет боли, 3 — «терпимо», 6+ — снижаем нагрузку на ноги.</p>
         <Field label="Заметки"><textarea value={w.notes || ''} onChange={(e) => setW({ ...w, notes: e.target.value })} placeholder="самочувствие, что заменил, что болело…" /></Field>
+        {warn > 0 && (
+          <div className="banner alarm" style={{ marginTop: 10 }}>
+            <span className="small">
+              В {warn} {warn === 1 ? 'подходе' : 'подходах'} указан вес, но не заполнены повторы. Допиши их — иначе прогрессия решит, что подход не сделан.
+            </span>
+            <button className="btn-sm btn-ghost" onClick={() => save(true)}>всё равно сохранить</button>
+          </div>
+        )}
         <div className="row" style={{ marginTop: 10 }}>
-          <button className="btn-primary grow" disabled={busy} onClick={save}>Сохранить</button>
+          <button className="btn-primary grow" disabled={busy} onClick={() => save()}>Сохранить</button>
           {w.id && <Confirm onYes={remove}>Удалить</Confirm>}
         </div>
       </div>
