@@ -54,6 +54,7 @@ export default function Program({ state, reload }) {
                   <label className="check"><input type="checkbox" checked={!!it.knee_sensitive} onChange={(e) => updItem(d, i, { knee_sensitive: e.target.checked })} />колено</label>
                   <label className="check"><input type="checkbox" checked={!!it.no_progression} onChange={(e) => updItem(d, i, { no_progression: e.target.checked })} />без прогрессии</label>
                   <label className="check"><input type="checkbox" checked={!!it.per_hand} onChange={(e) => updItem(d, i, { per_hand: e.target.checked })} />вес на руку</label>
+                  <label className="check"><input type="checkbox" checked={!!it.per_side} onChange={(e) => updItem(d, i, { per_side: e.target.checked })} />вес на сторону</label>
                   <label className="check"><input type="checkbox" checked={!!it.warmup} onChange={(e) => updItem(d, i, { warmup: e.target.checked })} />разминочный подход</label>
                 </div>
                 {it.cardio ? (

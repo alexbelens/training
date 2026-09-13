@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { api } from '../api.js';
-import { tonnage, sessionsFor, workingWeight } from '@shared/progression.js';
+import { tonnage, sessionsFor, workingWeight, weightUnit } from '@shared/progression.js';
 import LineChart from '../components/LineChart.jsx';
 import { Field, fmtDate, today, useToast } from '../components/ui.jsx';
 
@@ -44,7 +44,7 @@ export default function Progress({ state, reload }) {
         <select value={exId || ''} onChange={(e) => setExId(e.target.value)} style={{ marginBottom: 8 }}>
           {allItems.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
         </select>
-        <LineChart points={exPoints} unit={ex?.per_hand ? 'кг/рука' : 'кг'} />
+        <LineChart points={exPoints} unit={weightUnit(ex).label} />
       </div>
 
       <div className="card">

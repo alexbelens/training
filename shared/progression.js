@@ -44,7 +44,7 @@ export function normName(n) {
 
 /**
  * @param {object} exercise — элемент программы: { id, name, target_sets, target_reps, cardio, knee_sensitive,
- *   no_progression, step, per_hand, warmup }
+ *   no_progression, step, per_hand, per_side, warmup }
  * @param {Array} workouts — все тренировки (любой порядок), каждая: { id, date, type, pain, exercises:[{name, program_id, sets:[{w,r}]}] }
  * @param {object} opts — { adaptation: boolean } — адаптационный период (2 рабочих подхода)
  * @returns {null | { first: true, note } | { w, sets, reps, note, warmup?, rule }}
@@ -129,14 +129,25 @@ export function kneeAlarm(workouts) {
   return n >= 2 && Number(sorted[n - 1].pain) >= 6 && Number(sorted[n - 2].pain) >= 6;
 }
 
-/** Тоннаж тренировки: Σ вес × повторы (для per_hand — ×2). */
+/**
+ * В чём измеряется вес упражнения. Гантели — вес одной штуки, рычажные тренажёры с блинами
+ * на каждой ручке — вес одной стороны. И то, и другое в сумме даёт вдвое больше.
+ */
+export function weightUnit(item) {
+  if (item?.per_hand) return { label: 'кг/рука', short: '/рука', multiplier: 2, total: true };
+  if (item?.per_side) return { label: 'кг/сторона', short: '/сторона', multiplier: 2, total: true };
+  if (item?.bodyweight) return { label: 'доп. кг', short: '', multiplier: 1, total: false };
+  return { label: 'кг', short: '', multiplier: 1, total: false };
+}
+
+/** Тоннаж тренировки: Σ вес × повторы (для веса на руку или на сторону — ×2). */
 export function tonnage(workout, program) {
   let t = 0;
   if (workout?.status === 'skipped') return 0;
   for (const ex of workout.exercises || []) {
     if (ex?.skipped) continue;
     const item = findProgramItem(program, ex);
-    const mult = item?.per_hand ? 2 : 1;
+    const mult = weightUnit(item).multiplier;
     for (const s of ex.sets || []) t += (Number(s.w) || 0) * (Number(s.r) || 0) * mult;
   }
   return t;

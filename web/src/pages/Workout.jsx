@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
-import { suggest, tonnage } from '@shared/progression.js';
+import { suggest, tonnage, weightUnit } from '@shared/progression.js';
 import { DOW_SHORT, DOW_FULL, weeklyCount } from '@shared/schedule.js';
 import { Field, Confirm, fmtDate, today, useToast } from '../components/ui.jsx';
 import MachineButton from '../components/MachinePopup.jsx';
@@ -96,7 +96,7 @@ export default function Workout({ state, reload, setTab }) {
                 <span className="grow">{it.name}</span>
                 {it.cardio ? <span className="muted">{it.duration}</span>
                   : s?.first ? <span className="muted">подобрать вес</span>
-                  : s ? <span className="accent">{s.w}{it.per_hand ? '/рука' : ''} × {s.reps} × {s.sets}</span>
+                  : s ? <span className="accent">{s.w}{weightUnit(it).short} × {s.reps} × {s.sets}</span>
                   : <span className="muted">{it.target_sets}×{it.target_reps}{it.unit ? ' ' + it.unit : ''}</span>}
               </div>
             );
@@ -292,7 +292,12 @@ function Editor({ w, setW, state, program, suggestions, onClose, reload, toast }
             {it?.technique && <details><summary>техника</summary><p className="small muted">{it.technique}</p></details>}
             {s && !s.first && (
               <div className="sugg" style={{ margin: '8px 0' }}>
-                <span>Рекомендация: <b>{s.w}{it?.per_hand ? ' кг/рука' : ' кг'} × {s.reps} × {s.sets}</b>{s.warmup ? <span className="muted"> · разминка {s.warmup}</span> : null}<div className="tiny muted">{s.note}</div></span>
+                <span>
+                  Рекомендация: <b>{s.w} {weightUnit(it).label} × {s.reps} × {s.sets}</b>
+                  {s.warmup ? <span className="muted"> · разминка {s.warmup}</span> : null}
+                  {weightUnit(it).total && <div className="tiny accent">по {s.w} с каждой стороны, суммарно {s.w * 2} кг{s.warmup ? ` · разминка ${s.warmup} с каждой` : ''}</div>}
+                  <div className="tiny muted">{s.note}</div>
+                </span>
                 <button className="btn-sm" onClick={() => updSets(i, (sets) => Array.from({ length: s.sets }, (_, k) => ({ ...(sets[k] || {}), w: s.w, r: sets[k]?.r || String(s.reps ?? '') })))}>применить</button>
               </div>
             )}
@@ -301,7 +306,7 @@ function Editor({ w, setW, state, program, suggestions, onClose, reload, toast }
               <Field label="Длительность / заметка"><input placeholder={it?.duration || 'например, 8 мин'} value={ex.duration || ''} onChange={(e) => upd(i, { duration: e.target.value })} /></Field>
             ) : (
               <div className="stack">
-                <div className="set-row tiny muted"><span /><span className="n">{it?.per_hand ? 'кг/рука' : it?.bodyweight ? 'доп. кг' : 'кг'}</span><span /><span className="n">{it?.unit || 'повт.'}</span><span /></div>
+                <div className="set-row tiny muted"><span /><span className="n">{weightUnit(it).label}</span><span /><span className="n">{it?.unit || 'повт.'}</span><span /></div>
                 {ex.sets.map((st, j) => (
                   <div key={j} className="set-row">
                     <span className="n">{j + 1}</span>
@@ -312,6 +317,9 @@ function Editor({ w, setW, state, program, suggestions, onClose, reload, toast }
                   </div>
                 ))}
                 <button className="btn-sm btn-ghost" onClick={() => updSets(i, (sets) => [...sets, { w: sets.at(-1)?.w ?? '', r: sets.at(-1)?.r ?? '' }])}>+ подход</button>
+                {weightUnit(it).total && ex.sets.some((st) => Number(st.w) > 0) && (
+                  <div className="tiny muted">вводишь вес одной стороны: {ex.sets.filter((st) => Number(st.w) > 0).map((st) => `${st.w}+${st.w}=${Number(st.w) * 2}`).join(', ')}</div>
+                )}
               </div>
             )}
             </>

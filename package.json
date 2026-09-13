@@ -1,6 +1,6 @@
 {
   "name": "training",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Self-hosted дневник тренировок с авто-прогрессией и тренером-Claude",
   "type": "module",
   "private": true,

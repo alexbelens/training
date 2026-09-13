@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { suggest, kneeAlarm, tonnage, nextDayType, roundToStep } from '../shared/progression.js';
+import { suggest, kneeAlarm, tonnage, nextDayType, roundToStep, weightUnit } from '../shared/progression.js';
 import { validateProgram, DEFAULT_FORBIDDEN } from '../shared/constraints.js';
 import { DEFAULT_PROGRAM } from '../shared/default-program.js';
 
@@ -179,4 +179,18 @@ test('тоннаж не учитывает пропущенное упражне
     { name: legPress.name, skipped: true, sets: [{ w: 100, r: 10 }] },
   ]);
   assert.equal(tonnage(w, DEFAULT_PROGRAM), 500);
+});
+
+test('единица веса: гантели, стороны тренажёра, свой вес', () => {
+  assert.deepEqual(weightUnit({ per_hand: true }), { label: 'кг/рука', short: '/рука', multiplier: 2, total: true });
+  assert.deepEqual(weightUnit({ per_side: true }), { label: 'кг/сторона', short: '/сторона', multiplier: 2, total: true });
+  assert.equal(weightUnit({ bodyweight: true }).label, 'доп. кг');
+  assert.equal(weightUnit({}).multiplier, 1);
+  assert.equal(weightUnit(null).label, 'кг');
+});
+
+test('тоннаж считает обе стороны рычажного тренажёра', () => {
+  const program = { days: { B: [{ id: 'b6', name: 'Жим на плечи (рычажный)', per_side: true }] } };
+  const w = { date: '2026-09-13', type: 'B', exercises: [{ program_id: 'b6', name: 'Жим на плечи (рычажный)', sets: [{ w: 17.5, r: 12 }] }] };
+  assert.equal(tonnage(w, program), 17.5 * 12 * 2);
 });
