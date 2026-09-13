@@ -41,8 +41,17 @@ function blankFromProgram(items, suggestions) {
 export default function Workout({ state, reload, setTab }) {
   const toast = useToast();
   const { program, profile, workouts, next_day, next_planned, missed = [], adherence } = state;
-  const [editing, setEditing] = useState(readDraft); // {id?, date, type, exercises, pain, notes}
-  useEffect(() => { writeDraft(editing); }, [editing]);
+  const [editing, setEditing] = useState(null); // {id?, date, type, exercises, pain, notes}
+  const [draft, setDraft] = useState(readDraft);   // незаконченная тренировка, к ней можно вернуться
+  useEffect(() => { if (editing) writeDraft(editing); }, [editing]);
+
+  /** Выйти, оставив введённое: черновик ждёт на главном экране. */
+  const minimize = () => { if (editing) { writeDraft(editing); setDraft(editing); } setEditing(null); };
+  /** Выйти и стереть введённое. */
+  const discard = () => { writeDraft(null); setDraft(null); setEditing(null); };
+  /** Тренировка ушла на сервер — черновик больше не нужен. */
+  const finish = () => { writeDraft(null); setDraft(null); setEditing(null); };
+  const resume = () => { setEditing(draft); window.scrollTo(0, 0); };
   const planned = next_planned;
   const [day, setDay] = useState(planned?.suggested_type || next_day || 'A');
   const [date, setDate] = useState(planned?.status === 'today' ? planned.date : (state.today || today()));
@@ -69,7 +78,8 @@ export default function Workout({ state, reload, setTab }) {
     catch (e) { toast(e.message); }
   }
 
-  if (editing) return <Editor w={editing} setW={setEditing} state={state} program={program} suggestions={editing.id ? {} : suggestions} onClose={() => setEditing(null)} reload={reload} toast={toast} />;
+  if (editing) return <Editor w={editing} setW={setEditing} state={state} program={program} suggestions={editing.id ? {} : suggestions}
+    onMinimize={minimize} onDiscard={discard} onFinish={finish} reload={reload} toast={toast} />;
 
   const sorted = [...workouts].sort((a, b) => String(b.date).localeCompare(String(a.date)) || b.id - a.id);
   return (
@@ -79,6 +89,21 @@ export default function Workout({ state, reload, setTab }) {
           <h2>Расписание не настроено</h2>
           <p className="small muted">Выбери, сколько раз в неделю тренируешься и в какие дни. Тогда приложение будет напоминать, что сегодня по плану, и учитывать пропуски.</p>
           <button className="btn-primary" onClick={() => setTab && setTab('settings')}>Настроить расписание</button>
+        </div>
+      )}
+
+      {draft && (
+        <div className="card span2" style={{ borderColor: 'rgba(245,165,36,.5)' }}>
+          <div className="row between wrap">
+            <div>
+              <b>Незаконченная тренировка</b>
+              <div className="small muted">день {draft.type} · {fmtDate(draft.date)} · отмечено {draft.exercises?.filter((e) => e.done).length || 0} из {draft.exercises?.length || 0} упражнений</div>
+            </div>
+            <div className="row">
+              <button className="btn-primary btn-sm" onClick={resume}>Продолжить</button>
+              <Confirm className="btn-sm btn-ghost" text="Стереть черновик?" onYes={discard}>Стереть</Confirm>
+            </div>
+          </div>
         </div>
       )}
 
@@ -211,7 +236,7 @@ function PlanCard({ className = '', planned, missed, adherence, onStart, onSkip,
   );
 }
 
-function Editor({ w, setW, state, program, suggestions, onClose, reload, toast }) {
+function Editor({ w, setW, state, program, suggestions, onMinimize, onDiscard, onFinish, reload, toast }) {
   const [busy, setBusy] = useState(false);
   const [warn, setWarn] = useState(0);
   const items = program?.days?.[w.type] || [];
@@ -248,25 +273,28 @@ function Editor({ w, setW, state, program, suggestions, onClose, reload, toast }
           : { ...e, sets: e.sets.filter((s) => s.w !== '' || s.r !== '').map((s) => ({ w: Number(s.w) || 0, r: Number(s.r) || 0 })) }
       )) };
       if (w.id) await api.put(`/api/workouts/${w.id}`, body); else await api.post('/api/workouts', body);
-      toast('Сохранено'); await reload(); onClose();
+      toast('Сохранено'); await reload(); onFinish();
     } catch (e) { toast('Ошибка: ' + e.message); } finally { setBusy(false); }
   }
-  async function remove() { await api.del(`/api/workouts/${w.id}`); toast('Удалено'); await reload(); onClose(); }
+  async function remove() { await api.del(`/api/workouts/${w.id}`); toast('Удалено'); await reload(); onFinish(); }
 
   return (
     <>
       <div className="card">
         <div className="row between">
           <h2>{w.id ? 'Тренировка' : 'Новая'} · день {w.type}</h2>
-          {hasData(w)
-            ? <Confirm className="btn-sm btn-ghost" text="Выйти и стереть?" onYes={onClose}>Закрыть</Confirm>
-            : <button className="btn-sm btn-ghost" onClick={onClose}>Закрыть</button>}
+          <div className="row">
+            <button className="btn-sm" onClick={onMinimize}>Свернуть</button>
+            {hasData(w)
+              ? <Confirm className="btn-sm btn-ghost" text="Стереть введённое?" onYes={onDiscard}>Стереть</Confirm>
+              : <button className="btn-sm btn-ghost" onClick={onDiscard}>Закрыть</button>}
+          </div>
         </div>
         <div className="grid2">
           <Field label="Дата"><input type="date" value={w.date} onChange={(e) => setW({ ...w, date: e.target.value })} /></Field>
           <Field label="День"><select value={w.type} onChange={(e) => setW({ ...w, type: e.target.value })}>{Object.keys(program?.days || {}).map((d) => <option key={d}>{d}</option>)}</select></Field>
         </div>
-        <div className="tiny muted">Черновик сохраняется сам — можно обновить страницу или закрыть вкладку, введённое останется.</div>
+        <div className="tiny muted">«Свернуть» — выйти и вернуться позже, введённое сохранится. «Стереть» — выбросить черновик.</div>
       </div>
 
       <div className="ex-grid">
