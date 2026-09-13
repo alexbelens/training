@@ -20,9 +20,13 @@ function blankFromProgram(items, suggestions) {
   return items.map((it) => {
     const s = suggestions[it.id];
     const n = it.cardio ? 0 : (s?.sets || it.target_sets || 3);
+    // Повторы подставляем так же, как вес: человек правит только то, что отличалось от плана.
+    // Раньше поле оставалось пустым, а целевое число показывалось лишь подсказкой — её принимали
+    // за значение, и каждый подход «сделал ровно как написано» сохранялся с нулём повторов.
+    const reps = s && !s.first ? (s.reps ?? it.target_reps) : it.target_reps;
     return {
       program_id: it.id, name: it.name, done: false,
-      sets: Array.from({ length: n }, () => ({ w: s && !s.first ? s.w : '', r: '' })),
+      sets: Array.from({ length: n }, () => ({ w: s && !s.first ? s.w : '', r: reps ? String(reps) : '' })),
       duration: '',
     };
   });
@@ -289,7 +293,7 @@ function Editor({ w, setW, state, program, suggestions, onClose, reload, toast }
             {s && !s.first && (
               <div className="sugg" style={{ margin: '8px 0' }}>
                 <span>Рекомендация: <b>{s.w}{it?.per_hand ? ' кг/рука' : ' кг'} × {s.reps} × {s.sets}</b>{s.warmup ? <span className="muted"> · разминка {s.warmup}</span> : null}<div className="tiny muted">{s.note}</div></span>
-                <button className="btn-sm" onClick={() => updSets(i, (sets) => Array.from({ length: s.sets }, (_, k) => (sets[k] ? { ...sets[k], w: s.w } : { w: s.w, r: '' })))}>применить</button>
+                <button className="btn-sm" onClick={() => updSets(i, (sets) => Array.from({ length: s.sets }, (_, k) => ({ ...(sets[k] || {}), w: s.w, r: sets[k]?.r || String(s.reps ?? '') })))}>применить</button>
               </div>
             )}
             {s?.first && <div className="sugg" style={{ margin: '8px 0' }}><span className="small">{s.note}</span></div>}
@@ -303,11 +307,11 @@ function Editor({ w, setW, state, program, suggestions, onClose, reload, toast }
                     <span className="n">{j + 1}</span>
                     <input className="num" type="number" inputMode="decimal" step="0.5" value={st.w} placeholder="0" onChange={(e) => updSet(i, j, { w: e.target.value })} />
                     <span className="x">×</span>
-                    <input className="num" type="number" inputMode="numeric" value={st.r} placeholder={String(it?.target_reps || '')} onChange={(e) => updSet(i, j, { r: e.target.value })} />
+                    <input className="num" type="number" inputMode="numeric" value={st.r} placeholder="—" onChange={(e) => updSet(i, j, { r: e.target.value })} />
                         <button className="btn-sm btn-ghost" onClick={() => updSets(i, (sets) => sets.filter((_, k) => k !== j))}>✕</button>
                   </div>
                 ))}
-                <button className="btn-sm btn-ghost" onClick={() => updSets(i, (sets) => [...sets, { w: sets.at(-1)?.w ?? '', r: '' }])}>+ подход</button>
+                <button className="btn-sm btn-ghost" onClick={() => updSets(i, (sets) => [...sets, { w: sets.at(-1)?.w ?? '', r: sets.at(-1)?.r ?? '' }])}>+ подход</button>
               </div>
             )}
             </>
