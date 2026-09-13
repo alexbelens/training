@@ -193,9 +193,14 @@ api.get('/state', (req, res) => {
 api.get('/version', async (req, res) => res.json(await checkForUpdate({ force: req.query.force === '1' })));
 
 // ---------- profile ----------
+const NUMERIC_PROFILE_FIELDS = ['height_cm', 'start_weight_kg', 'target_weight_kg'];
 api.put('/profile', (req, res) => {
   const patch = { ...(req.body || {}) };
   if ('schedule' in patch) patch.schedule = normalizeSchedule(patch.schedule);
+  // с клиента числа приходят строками (поля принимают запятую как разделитель)
+  for (const f of NUMERIC_PROFILE_FIELDS) {
+    if (f in patch) { const n = Number(String(patch[f]).replace(',', '.')); patch[f] = Number.isFinite(n) && patch[f] !== '' ? n : null; }
+  }
   res.json(store.saveProfile(req.user.id, patch));
 });
 

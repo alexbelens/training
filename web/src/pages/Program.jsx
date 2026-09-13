@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { api } from '../api.js';
 import { validateProgram } from '@shared/constraints.js';
-import { Field, Confirm, fmtDate, useToast } from '../components/ui.jsx';
+import { Field, Confirm, fmtDate, useToast, asDecimal, asInt } from '../components/ui.jsx';
 import MachineButton from '../components/MachinePopup.jsx';
 import { machineTypeGroups, machineTypeLabel } from '@shared/machine-types.js';
 
@@ -61,9 +61,9 @@ export default function Program({ state, reload }) {
                   <Field label="Длительность"><input value={it.duration || ''} onChange={(e) => updItem(d, i, { duration: e.target.value })} /></Field>
                 ) : (
                   <div className="row">
-                    <Field label="Подходы"><input type="number" inputMode="numeric" value={it.target_sets ?? ''} onChange={(e) => updItem(d, i, { target_sets: Number(e.target.value) })} /></Field>
-                    <Field label="Повторы"><input type="number" inputMode="numeric" value={it.target_reps ?? ''} onChange={(e) => updItem(d, i, { target_reps: Number(e.target.value) })} /></Field>
-                    <Field label="Шаг, кг"><input type="number" inputMode="decimal" step="0.5" value={it.step ?? 2.5} onChange={(e) => updItem(d, i, { step: Number(e.target.value) })} /></Field>
+                    <Field label="Подходы"><input type="text" inputMode="numeric" value={it.target_sets ?? ''} onChange={(e) => updItem(d, i, { target_sets: asInt(e.target.value) })} /></Field>
+                    <Field label="Повторы"><input type="text" inputMode="numeric" value={it.target_reps ?? ''} onChange={(e) => updItem(d, i, { target_reps: asInt(e.target.value) })} /></Field>
+                    <Field label="Шаг, кг"><input type="text" inputMode="decimal" value={it.step ?? 2.5} onChange={(e) => updItem(d, i, { step: asDecimal(e.target.value) })} /></Field>
                     <Field label="Ед."><input value={it.unit || ''} placeholder="повт." onChange={(e) => updItem(d, i, { unit: e.target.value || undefined })} /></Field>
                   </div>
                 )}

@@ -8,6 +8,11 @@ import MachineButton from '../components/MachinePopup.jsx';
 // Черновик тренировки переживает обновление страницы, закрытие вкладки и разряженный телефон.
 // Живёт только в этом браузере — на сервер уходит уже готовая запись.
 const DRAFT_KEY = 'workout-draft';
+
+/** Вес: принимаем и запятую, и точку, оставляем один разделитель. */
+const asDecimal = (v) => String(v).replace(',', '.').replace(/[^\d.]/g, '').replace(/(\.[^.]*)\./g, '$1');
+/** Повторы: только целые. */
+const asInt = (v) => String(v).replace(/[^\d]/g, '');
 const readDraft = () => { try { const s = localStorage.getItem(DRAFT_KEY); return s ? JSON.parse(s) : null; } catch { return null; } };
 const writeDraft = (w) => { try { w ? localStorage.setItem(DRAFT_KEY, JSON.stringify(w)) : localStorage.removeItem(DRAFT_KEY); } catch {} };
 /** Есть ли что терять: заполненный подход, заметка, боль или отметка «готово». */
@@ -310,9 +315,9 @@ function Editor({ w, setW, state, program, suggestions, onClose, reload, toast }
                 {ex.sets.map((st, j) => (
                   <div key={j} className="set-row">
                     <span className="n">{j + 1}</span>
-                    <input className="num" type="number" inputMode="decimal" step="0.5" value={st.w} placeholder="0" onChange={(e) => updSet(i, j, { w: e.target.value })} />
+                    <input className="num" type="text" inputMode="decimal" enterKeyHint="next" value={st.w} placeholder="0" onChange={(e) => updSet(i, j, { w: asDecimal(e.target.value) })} />
                     <span className="x">×</span>
-                    <input className="num" type="number" inputMode="numeric" value={st.r} placeholder="—" onChange={(e) => updSet(i, j, { r: e.target.value })} />
+                    <input className="num" type="text" inputMode="numeric" enterKeyHint="next" value={st.r} placeholder="—" onChange={(e) => updSet(i, j, { r: asInt(e.target.value) })} />
                         <button className="btn-sm btn-ghost" onClick={() => updSets(i, (sets) => sets.filter((_, k) => k !== j))}>✕</button>
                   </div>
                 ))}

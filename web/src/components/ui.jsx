@@ -27,6 +27,10 @@ export function Confirm({ text, onYes, children, className = 'btn-danger btn-sm'
   );
 }
 
+/** Телефон на русской раскладке даёт запятую — числовое поле её не принимает и стирает ввод. */
+export const asDecimal = (v) => String(v).replace(',', '.').replace(/[^\d.]/g, '').replace(/(\.[^.]*)\./g, '$1');
+export const asInt = (v) => String(v).replace(/[^\d]/g, '');
+
 export const fmtDate = (d) => { if (!d) return ''; const [y, m, dd] = String(d).slice(0, 10).split('-'); return `${dd}.${m}.${y.slice(2)}`; };
 export const today = () => { const d = new Date(); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
 /** Попап: закрывается по фону, крестику и Esc; фон под ним не скроллится. */

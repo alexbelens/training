@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { tonnage, sessionsFor, workingWeight, weightUnit } from '@shared/progression.js';
 import LineChart from '../components/LineChart.jsx';
-import { Field, fmtDate, today, useToast } from '../components/ui.jsx';
+import { Field, fmtDate, today, useToast, asDecimal } from '../components/ui.jsx';
 
 export default function Progress({ state, reload }) {
   const toast = useToast();
@@ -28,7 +28,7 @@ export default function Progress({ state, reload }) {
         <LineChart points={weights.map((w) => ({ x: fmtDate(w.date), y: w.kg }))} target={profile.target_weight_kg || null} unit="кг" />
         <div className="row" style={{ marginTop: 8 }}>
           <input type="date" value={wt.date} onChange={(e) => setWt({ ...wt, date: e.target.value })} />
-          <input className="num" type="number" inputMode="decimal" step="0.1" placeholder="кг" value={wt.kg} onChange={(e) => setWt({ ...wt, kg: e.target.value })} />
+          <input className="num" type="text" inputMode="decimal" placeholder="кг" value={wt.kg} onChange={(e) => setWt({ ...wt, kg: asDecimal(e.target.value) })} />
           <button className="btn-primary" onClick={addWeight}>+</button>
         </div>
         <p className="tiny muted">Взвешивание раз в неделю утром. Пунктир — цель {profile.target_weight_kg ? `${profile.target_weight_kg} кг` : '(укажи в настройках)'}.</p>

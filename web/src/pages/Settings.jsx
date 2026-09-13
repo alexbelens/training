@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { DOW_SHORT, normalizeSchedule } from '@shared/schedule.js';
-import { Field, Confirm, fmtDate, useToast } from '../components/ui.jsx';
+import { Field, Confirm, fmtDate, useToast, asDecimal, asInt } from '../components/ui.jsx';
 
 export default function Settings({ state, reload, onLogout }) {
   const toast = useToast();
@@ -47,9 +47,9 @@ export default function Settings({ state, reload, onLogout }) {
         {!profile.onboarded && <p className="small accent">Заполни профиль: рост, вес, цель и ограничения. Это видит тренер при разборе.</p>}
         <Field label="Как к тебе обращаться"><input value={p.name || ''} onChange={set('name')} /></Field>
         <div className="row">
-          <Field label="Рост, см"><input type="number" inputMode="numeric" value={p.height_cm ?? ''} onChange={num('height_cm')} /></Field>
-          <Field label="Старт. вес"><input type="number" inputMode="decimal" step="0.1" value={p.start_weight_kg ?? ''} onChange={num('start_weight_kg')} /></Field>
-          <Field label="Цель, кг"><input type="number" inputMode="decimal" step="0.1" value={p.target_weight_kg ?? ''} onChange={num('target_weight_kg')} /></Field>
+          <Field label="Рост, см"><input type="text" inputMode="numeric" value={p.height_cm ?? ''} onChange={(e) => setP({ ...p, height_cm: asInt(e.target.value) || null })} /></Field>
+          <Field label="Старт. вес"><input type="text" inputMode="decimal" value={p.start_weight_kg ?? ''} onChange={(e) => setP({ ...p, start_weight_kg: asDecimal(e.target.value) })} /></Field>
+          <Field label="Цель, кг"><input type="text" inputMode="decimal" value={p.target_weight_kg ?? ''} onChange={(e) => setP({ ...p, target_weight_kg: asDecimal(e.target.value) })} /></Field>
         </div>
         <div className="row">
           <Field label="Начало тренировок"><input type="date" value={p.started_at || ''} onChange={set('started_at')} /></Field>
