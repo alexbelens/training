@@ -318,3 +318,11 @@ test('упражнение с пометкой pain_exempt не режется �
   const r2 = suggest({ ...ext, pain_exempt: false }, hist);
   assert.equal(r2.rule, 'pain4');
 });
+
+test('режим учёта боли: off и note не трогают веса, auto снижает', () => {
+  const hist = [wk('2026-09-19', 'A', 7, [ex('Жим ногами сидя (короткая амплитуда)', [{ w: 60, r: 12 }, { w: 60, r: 12 }, { w: 60, r: 12 }])])];
+  assert.equal(suggest(legPress, hist, { painTracking: 'auto' }).rule, 'pain6');
+  assert.equal(suggest(legPress, hist, { painTracking: 'off' }).rule, 'up', 'без автоснижения работает обычная прогрессия');
+  assert.equal(suggest(legPress, hist, { painTracking: 'note' }).rule, 'up');
+  assert.equal(suggest(legPress, hist).rule, 'pain6', 'по умолчанию — как раньше');
+});

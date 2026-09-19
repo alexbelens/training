@@ -153,7 +153,7 @@ export function suggest(exercise, workouts, opts = {}) {
   // Снижаем по боли только те упражнения, где колено сгибается под нагрузкой.
   // Упражнение с пометкой pain_exempt (например, разгибание в верхней трети — колено почти прямое)
   // переносится нормально даже в болезненный период, резать его не нужно.
-  const scaleByPain = knee && !exercise.pain_exempt;
+  const scaleByPain = knee && !exercise.pain_exempt && opts.painTracking !== 'off' && opts.painTracking !== 'note';
   let painFactor = 1, painNote = null, painRule = null;
   if (scaleByPain && painKnown && pain >= 6) { painFactor = 0.7; painNote = 'колено 6+ — минус 30%'; painRule = 'pain6'; }
   else if (scaleByPain && painKnown && pain >= 4) { painFactor = 0.85; painNote = 'колено 4–5 — минус 15%'; painRule = 'pain4'; }

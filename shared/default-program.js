@@ -47,6 +47,9 @@ export const DEFAULT_PROFILE = {
   cycle_start: null,
   cycle: { work_weeks: 4, deload_weeks: 1 },
   adaptation_period: true,
+  // Как учитывать боль: 'auto' — снижает веса автоматически, 'note' — только записывается,
+  // 'off' — не спрашиваем вовсе.
+  pain_tracking: 'auto',
   knee: '',
   goals: '',
   restrictions: '',

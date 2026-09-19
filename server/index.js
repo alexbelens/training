@@ -250,7 +250,8 @@ api.get('/suggest/:day', (req, res) => {
   const activeGym = gyms.find((g) => g.id === profile.active_gym_id) || gyms[0] || null;
   const byType = machinesByType(activeGym?.machines || []);
   const when = req.query.date || today();
-  const opts = { adaptation: !!profile.adaptation_period, today: when, phase: cyclePosition(profile, when).phase };
+  const opts = { adaptation: !!profile.adaptation_period, today: when, phase: cyclePosition(profile, when).phase,
+    painTracking: profile.pain_tracking || 'auto' };
   res.json(Object.fromEntries(items.map((it) => [it.id, suggest(it, workouts, { ...opts, machineStep: machineStepFor(byType, it) })])));
 });
 

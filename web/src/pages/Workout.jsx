@@ -278,7 +278,8 @@ function Editor({ w, setW, state, program, suggestions, onMinimize, onDiscard, o
   }
 
   async function save(force = false) {
-    if (w.pain == null) { toast('Отметь боль в колене (0–10) — это обязательное поле'); return; }
+    const painMode = state?.profile?.pain_tracking || 'auto';
+    if (painMode === 'auto' && w.pain == null) { toast('Отметь боль в колене (0–10) — это обязательное поле'); return; }
     const empty = setsWithoutReps(w);
     if (empty > 0 && !force) { setWarn(empty); return; }
     setWarn(0);
@@ -394,9 +395,17 @@ function Editor({ w, setW, state, program, suggestions, onMinimize, onDiscard, o
       </div>
 
       <div className="card">
-        <h3>Боль в колене после тренировки (0–10) <span className="bad">*</span></h3>
-        <div className="pain">{Array.from({ length: 11 }, (_, n) => <button key={n} className={w.pain === n ? 'active' : ''} onClick={() => setW({ ...w, pain: n })}>{n}</button>)}</div>
-        <p className="tiny muted">0 — нет боли, 3 — «терпимо», 6+ — снижаем нагрузку на ноги.</p>
+        {(state?.profile?.pain_tracking || 'auto') !== 'off' && (
+          <>
+            <h3>Боль в колене после тренировки (0–10){(state?.profile?.pain_tracking || 'auto') === 'auto' && <span className="bad"> *</span>}</h3>
+            <div className="pain">{Array.from({ length: 11 }, (_, n) => <button key={n} className={w.pain === n ? 'active' : ''} onClick={() => setW({ ...w, pain: n })}>{n}</button>)}</div>
+            <p className="tiny muted">
+              {(state?.profile?.pain_tracking || 'auto') === 'auto'
+                ? '0 — нет боли, 3 — «терпимо», 6+ — снижаем нагрузку на ноги.'
+                : 'Записывается для истории и разборов, на веса не влияет.'}
+            </p>
+          </>
+        )}
         <Field label="Заметки"><textarea value={w.notes || ''} onChange={(e) => setW({ ...w, notes: e.target.value })} placeholder="самочувствие, что заменил, что болело…" /></Field>
         {warn > 0 && (
           <div className="banner alarm" style={{ marginTop: 10 }}>
