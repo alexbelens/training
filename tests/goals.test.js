@@ -4,7 +4,7 @@ import { goalProgress, daysLeft, goalsSummary, weightPace } from '../shared/goal
 
 const program = { days: { A: [{ id: 'a5', name: 'Жим лёжа штангой', target_sets: 3, rep_min: 8, rep_max: 12 }] } };
 const profile = { start_weight_kg: 115, target_weight_kg: 100, schedule: [{ dow: 2, type: 'A' }, { dow: 4, type: 'B' }], started_at: '2026-09-07' };
-const wk = (date, type, sets) => ({ id: Date.parse(date), date, type, pain: 2, status: 'done', exercises: [{ program_id: 'a5', name: 'Жим лёжа штангой', sets }] });
+const wk = (date, type, sets) => ({ id: Date.parse(date), date, type, status: 'done', exercises: [{ program_id: 'a5', name: 'Жим лёжа штангой', sets }] });
 
 test('вес тела: процент считается от старта к цели', () => {
   const g = { kind: 'body_weight', target: { kg: 100 } };

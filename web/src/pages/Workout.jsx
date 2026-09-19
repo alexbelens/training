@@ -18,7 +18,7 @@ const readDraft = () => { try { const s = localStorage.getItem(DRAFT_KEY); retur
 const writeDraft = (w) => { try { w ? localStorage.setItem(DRAFT_KEY, JSON.stringify(w)) : localStorage.removeItem(DRAFT_KEY); } catch {} };
 /** Есть ли что терять: заполненный подход, заметка, боль или отметка «готово». */
 const hasData = (w) => !!w && (
-  w.pain != null || (w.notes || '').trim() !== '' ||
+  (w.notes || '').trim() !== '' ||
   (w.exercises || []).some((e) => e.done || e.skipped || (e.duration || '') !== '' || (e.sets || []).some((s) => s.w !== '' || s.r !== ''))
 );
 
@@ -50,7 +50,7 @@ function blankFromProgram(items, suggestions) {
 export default function Workout({ state, reload, setTab }) {
   const toast = useToast();
   const { program, profile, workouts, next_day, next_planned, missed = [], adherence, cycle } = state;
-  const [editing, setEditing] = useState(null); // {id?, date, type, exercises, pain, notes}
+  const [editing, setEditing] = useState(null); // {id?, date, type, exercises, notes}
   const [draft, setDraft] = useState(readDraft);   // незаконченная тренировка, к ней можно вернуться
   useEffect(() => { if (editing) writeDraft(editing); }, [editing]);
 
@@ -75,7 +75,7 @@ export default function Workout({ state, reload, setTab }) {
   function start(d = date, type = day) {
     const items = program?.days?.[type] || [];
     const sugg = Object.fromEntries(items.map((it) => [it.id, suggest(it, workouts, { adaptation: !!profile.adaptation_period, today: d, machineStep: machineStepFor(state.machines_by_type || {}, it) })]));
-    setEditing({ date: d, type, exercises: blankFromProgram(items, sugg), pain: null, notes: '' });
+    setEditing({ date: d, type, exercises: blankFromProgram(items, sugg), notes: '' });
     window.scrollTo(0, 0);
   }
   function openExisting(w) {
@@ -162,7 +162,7 @@ export default function Workout({ state, reload, setTab }) {
           <div key={w.id} className="list-item" onClick={() => openExisting(w)} style={{ cursor: 'pointer' }}>
             <div>
               <div><b>{fmtDate(w.date)}</b> · {DOW_SHORT[dowNum(w.date)]} · день {w.type} <span className="muted small">· {w.exercises.filter((e) => e.done).length}/{w.exercises.filter((e) => !e.skipped).length} упр.</span></div>
-              <div className="small muted">тоннаж {Math.round(tonnage(w, program))} кг{w.pain != null ? ` · колено ${w.pain}/10` : ' · боль не указана'}</div>
+              <div className="small muted">тоннаж {Math.round(tonnage(w, program))} кг</div>
               {w.exercises.filter((e) => e.skipped).map((e, k) => (
                 <div key={k} className="tiny muted">пропущено: {e.name}{e.skip_reason ? ` — ${e.skip_reason}` : ''}</div>
               ))}
@@ -278,8 +278,6 @@ function Editor({ w, setW, state, program, suggestions, onMinimize, onDiscard, o
   }
 
   async function save(force = false) {
-    const painMode = state?.profile?.pain_tracking || 'auto';
-    if (painMode === 'auto' && w.pain == null) { toast('Отметь боль в колене (0–10) — это обязательное поле'); return; }
     const empty = setsWithoutReps(w);
     if (empty > 0 && !force) { setWarn(empty); return; }
     setWarn(0);
@@ -395,17 +393,6 @@ function Editor({ w, setW, state, program, suggestions, onMinimize, onDiscard, o
       </div>
 
       <div className="card">
-        {(state?.profile?.pain_tracking || 'auto') !== 'off' && (
-          <>
-            <h3>Боль в колене после тренировки (0–10){(state?.profile?.pain_tracking || 'auto') === 'auto' && <span className="bad"> *</span>}</h3>
-            <div className="pain">{Array.from({ length: 11 }, (_, n) => <button key={n} className={w.pain === n ? 'active' : ''} onClick={() => setW({ ...w, pain: n })}>{n}</button>)}</div>
-            <p className="tiny muted">
-              {(state?.profile?.pain_tracking || 'auto') === 'auto'
-                ? '0 — нет боли, 3 — «терпимо», 6+ — снижаем нагрузку на ноги.'
-                : 'Записывается для истории и разборов, на веса не влияет.'}
-            </p>
-          </>
-        )}
         <Field label="Заметки"><textarea value={w.notes || ''} onChange={(e) => setW({ ...w, notes: e.target.value })} placeholder="самочувствие, что заменил, что болело…" /></Field>
         {warn > 0 && (
           <div className="banner alarm" style={{ marginTop: 10 }}>

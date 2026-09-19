@@ -51,7 +51,6 @@ export default function Program({ state, reload }) {
                 </div>
                 <div className="row wrap small">
                   <label className="check"><input type="checkbox" checked={!!it.cardio} onChange={(e) => updItem(d, i, { cardio: e.target.checked })} />кардио</label>
-                  <label className="check"><input type="checkbox" checked={!!it.knee_sensitive} onChange={(e) => updItem(d, i, { knee_sensitive: e.target.checked })} />колено</label>
                   <label className="check"><input type="checkbox" checked={!!it.no_progression} onChange={(e) => updItem(d, i, { no_progression: e.target.checked })} />без прогрессии</label>
                   <label className="check"><input type="checkbox" checked={!!it.per_hand} onChange={(e) => updItem(d, i, { per_hand: e.target.checked })} />вес на руку</label>
                   <label className="check"><input type="checkbox" checked={!!it.per_side} onChange={(e) => updItem(d, i, { per_side: e.target.checked })} />вес на сторону</label>
@@ -111,7 +110,7 @@ export default function Program({ state, reload }) {
           {items.map((it, i) => (
             <div key={it.id} className="list-item" style={{ alignItems: 'flex-start' }}>
               <div className="grow">
-                <div><span className="muted small">{i + 1}. </span><b>{it.name}</b> {it.knee_sensitive && <span className="chip" title="чувствительно к колену">колено</span>} {it.no_progression && <span className="chip">без прогрессии</span>}</div>
+                <div><span className="muted small">{i + 1}. </span><b>{it.name}</b> {it.no_progression && <span className="chip">без прогрессии</span>}</div>
                 <div className="small muted">{it.machine}</div>
                 {it.technique && <div className="small" style={{ marginTop: 4 }}>{it.technique}</div>}
                 {it.machine_type && <div className="tiny muted">{machineTypeLabel(it.machine_type)} · <MachineButton state={state} type={it.machine_type} /></div>}

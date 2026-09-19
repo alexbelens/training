@@ -10,7 +10,7 @@ const PROGRAM = { days: { A: [], B: [], C: [] } };
 // Пн 07.09.2026 … Вс 13.09.2026
 const MON = '2026-09-07', TUE = '2026-09-08', THU = '2026-09-10', FRI = '2026-09-11';
 const profile = (dows, types = ['A', 'B', 'A']) => ({ schedule: dows.map((d, i) => ({ dow: d, type: types[i % types.length] })) });
-const w = (date, type, extra = {}) => ({ id: Date.parse(date), date, type, pain: 2, exercises: [], ...extra });
+const w = (date, type, extra = {}) => ({ id: Date.parse(date), date, type, exercises: [], ...extra });
 
 test('дни недели считаются по ISO: понедельник = 1', () => {
   assert.equal(dowOf(MON), 1);
@@ -104,7 +104,7 @@ test('коэффициент детренированности растёт с 
 });
 
 const press = { id: 'a5', name: 'Жим лёжа штангой', target_sets: 3, target_reps: 12, step: 5 };
-const clean = [{ id: 1, date: '2026-08-01', type: 'A', pain: 2, exercises: [{ name: 'Жим лёжа штангой', done: true, sets: [{ w: 50, r: 12 }, { w: 50, r: 12 }, { w: 50, r: 12 }] }] }];
+const clean = [{ id: 1, date: '2026-08-01', type: 'A', exercises: [{ name: 'Жим лёжа штангой', done: true, sets: [{ w: 50, r: 12 }, { w: 50, r: 12 }, { w: 50, r: 12 }] }] }];
 
 test('без перерыва вес растёт, после паузы — снижается', () => {
   assert.equal(suggest(press, clean, { today: '2026-08-04' }).w, 55);
@@ -113,18 +113,11 @@ test('без перерыва вес растёт, после паузы — с�
   assert.equal(suggest(press, clean, { today: '2026-10-01' }).w, 30); // 61 день → −40%
 });
 
-test('боль и перерыв вместе: берётся более осторожное снижение', () => {
-  const knee = { id: 'a2', name: 'Жим ногами сидя', target_sets: 3, target_reps: 10, knee_sensitive: true, step: 5 };
-  const hist = [{ id: 1, date: '2026-08-01', type: 'A', pain: 7, exercises: [{ name: 'Жим ногами сидя', done: true, sets: [{ w: 50, r: 10 }, { w: 50, r: 10 }, { w: 50, r: 10 }] }] }];
-  const r = suggest(knee, hist, { today: '2026-08-25' }); // боль −30% против перерыва −10%
-  assert.equal(r.w, 35);
-  assert.equal(r.rule, 'pain6');
-});
 
 test('пропущенная тренировка не берётся как последняя сессия', () => {
   const hist = [
     ...clean,
-    { id: 2, date: '2026-08-04', type: 'A', status: 'skipped', pain: null, exercises: [] },
+    { id: 2, date: '2026-08-04', type: 'A', status: 'skipped', exercises: [] },
   ];
   const r = suggest(press, hist, { today: '2026-08-05' });
   assert.equal(r.w, 55, 'ориентируемся на последнюю реально выполненную');

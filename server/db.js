@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS workouts (
   date TEXT NOT NULL,
   type TEXT NOT NULL,
   exercises TEXT NOT NULL,
-  pain INTEGER,
+  pain INTEGER, -- устаревшее поле: механика боли убрана, колонка оставлена ради старых записей
   notes TEXT,
   status TEXT NOT NULL DEFAULT 'done',
   created_at TEXT NOT NULL DEFAULT (${NOW}),
@@ -258,7 +258,7 @@ export function saveProgram(userId, program, { rationale = null, author = 'user'
 }
 
 // ---------- workouts ----------
-const rowToWorkout = (r) => ({ id: r.id, date: r.date, type: r.type, exercises: p(r.exercises, []), pain: r.pain, notes: r.notes, status: r.status || 'done', created_at: r.created_at, updated_at: r.updated_at });
+const rowToWorkout = (r) => ({ id: r.id, date: r.date, type: r.type, exercises: p(r.exercises, []), notes: r.notes, status: r.status || 'done', created_at: r.created_at, updated_at: r.updated_at });
 export function listWorkouts(userId) {
   return db.prepare('SELECT * FROM workouts WHERE user_id = ? ORDER BY date ASC, id ASC').all(userId).map(rowToWorkout);
 }
@@ -267,20 +267,18 @@ export function getWorkout(userId, id) {
   return r ? rowToWorkout(r) : null;
 }
 export function createWorkout(userId, w) {
-  const pain = w.pain == null || w.pain === '' ? null : Number(w.pain);
   const status = w.status === 'skipped' ? 'skipped' : 'done';
-  const info = db.prepare('INSERT INTO workouts(user_id, client_id, date, type, exercises, pain, notes, status) VALUES(?, ?, ?, ?, ?, ?, ?, ?)')
-    .run(userId, w.client_id ? Number(w.client_id) : null, String(w.date), String(w.type), j(w.exercises || []), pain, w.notes ?? null, status);
+  const info = db.prepare('INSERT INTO workouts(user_id, client_id, date, type, exercises, notes, status) VALUES(?, ?, ?, ?, ?, ?, ?)')
+    .run(userId, w.client_id ? Number(w.client_id) : null, String(w.date), String(w.type), j(w.exercises || []), w.notes ?? null, status);
   return getWorkout(userId, Number(info.lastInsertRowid));
 }
 export function updateWorkout(userId, id, w) {
   const cur = getWorkout(userId, id);
   if (!cur) return null;
   const next = { ...cur, ...w };
-  const pain = next.pain == null || next.pain === '' ? null : Number(next.pain);
   const status = next.status === 'skipped' ? 'skipped' : 'done';
-  db.prepare(`UPDATE workouts SET date = ?, type = ?, exercises = ?, pain = ?, notes = ?, status = ?, updated_at = ${NOW} WHERE user_id = ? AND id = ?`)
-    .run(String(next.date), String(next.type), j(next.exercises || []), pain, next.notes ?? null, status, userId, id);
+  db.prepare(`UPDATE workouts SET date = ?, type = ?, exercises = ?, notes = ?, status = ?, updated_at = ${NOW} WHERE user_id = ? AND id = ?`)
+    .run(String(next.date), String(next.type), j(next.exercises || []), next.notes ?? null, status, userId, id);
   return getWorkout(userId, id);
 }
 export function deleteWorkout(userId, id) {

@@ -43,9 +43,9 @@ export function normName(n) {
 }
 
 /**
- * @param {object} exercise — элемент программы: { id, name, target_sets, target_reps, cardio, knee_sensitive,
- *   no_progression, step, per_hand, per_side, warmup }
- * @param {Array} workouts — все тренировки (любой порядок), каждая: { id, date, type, pain, exercises:[{name, program_id, sets:[{w,r}]}] }
+ * @param {object} exercise — элемент программы: { id, name, target_sets, target_reps, cardio, rep_min, rep_max,
+ *   no_progression, step, per_hand, per_side, warmup_sets }
+ * @param {Array} workouts — все тренировки (любой порядок), каждая: { id, date, type, exercises:[{name, program_id, sets:[{w,r}]}] }
  * @param {object} opts — { adaptation: boolean } — адаптационный период (2 рабочих подхода)
  * @returns {null | { first: true, note } | { w, sets, reps, note, warmup?, rule }}
  */
@@ -131,11 +131,6 @@ export function suggest(exercise, workouts, opts = {}) {
   if (w === 0) return null; // упражнение без веса — рекомендации нет
 
   const step = machineStep > 0 ? (exercise.per_side ? machineStep / 2 : machineStep) : (Number(exercise.step) || 2.5);
-  const knee = !!exercise.knee_sensitive;
-  // Колено одно на все упражнения: берём самую свежую оценку боли, даже если она
-  // с другой тренировки. Иначе боль после дня A не влияла бы на ноги в дне B.
-  const pain = knee ? latestPain(workouts, last.workout) : Number(last.workout.pain);
-  const painKnown = Number.isFinite(pain);
 
   // Двойная прогрессия: прибавляем, только когда верх диапазона закрыт во всех рабочих подходах.
   const work = workingSets(last.exercise.sets).filter((s) => Number(s.w) === w);
@@ -144,55 +139,27 @@ export function suggest(exercise, workouts, opts = {}) {
 
   const prevReps = work.map((x) => Number(x.r) || 0).filter((n) => n > 0);
   const withStep = { ...base, step, prev_reps: prevReps };
-  const withRamp = (r) => ({ ...r, warmups: warmupSets(r.w, step, exercise) });
-  const withWarmup = (r) => withRamp(r);
+  const withWarmup = (r) => ({ ...r, warmups: warmupSets(r.w, step, exercise) });
 
   const gap = layoffDays(last.workout.date, opts.today);
   const layoff = layoffFactor(gap);
-
-  // Снижаем по боли только те упражнения, где колено сгибается под нагрузкой.
-  // Упражнение с пометкой pain_exempt (например, разгибание в верхней трети — колено почти прямое)
-  // переносится нормально даже в болезненный период, резать его не нужно.
-  const scaleByPain = knee && !exercise.pain_exempt && opts.painTracking !== 'off' && opts.painTracking !== 'note';
-  let painFactor = 1, painNote = null, painRule = null;
-  if (scaleByPain && painKnown && pain >= 6) { painFactor = 0.7; painNote = 'колено 6+ — минус 30%'; painRule = 'pain6'; }
-  else if (scaleByPain && painKnown && pain >= 4) { painFactor = 0.85; painNote = 'колено 4–5 — минус 15%'; painRule = 'pain4'; }
-
-  const deloadFactor = deload ? 0.9 : 1;
-  const factor = Math.min(painFactor, layoff.factor, deloadFactor);
+  const factor = Math.min(layoff.factor, deload ? 0.9 : 1);
 
   if (factor < 1) {
-    const reason = factor === painFactor ? painNote
-      : factor === layoff.factor ? layoff.note
-      : 'разгрузочная неделя — вес ниже, подходов меньше';
-    const rule = factor === painFactor ? (painRule || 'pain') : factor === layoff.factor ? 'layoff' : 'deload';
-    return withWarmup({ ...withStep, w: floorToStep(w * factor, step), reps: range.max, note: reason, rule, gap_days: gap });
+    const reason = factor === layoff.factor ? layoff.note : 'разгрузочная неделя — вес ниже, подходов меньше';
+    return withWarmup({ ...withStep, w: floorToStep(w * factor, step), reps: range.max,
+      note: reason, rule: factor === layoff.factor ? 'layoff' : 'deload', gap_days: gap });
   }
   if (exercise.no_progression) {
     return withWarmup({ ...withStep, w, reps: range.max, note: 'вес держим, растим только повторы', rule: 'hold', gap_days: gap });
   }
   if (closed) {
-    // новый вес — ждём низ диапазона, прошлые повторы к нему не относятся
-    return withWarmup({ ...withStep, prev_reps: [], w: roundToStep(w + step, step), reps: range.min,
+    return withWarmup({ ...withStep, w: roundToStep(w + step, step), reps: range.min,
       note: `${range.max} повторов закрыты во всех подходах — прибавляем, повторы падают к ${range.min}`, rule: 'up', gap_days: gap });
   }
   const left = range.max > range.min && bestReps ? ` (лучший подход был на ${bestReps})` : '';
   return withWarmup({ ...withStep, w, reps: range.max,
     note: `тот же вес, цель — ${range.max} повторов в каждом подходе${left}`, rule: 'keep', gap_days: gap });
-}
-
-/**
- * Самая свежая оценка боли: из последней тренировки вообще, если она позже сессии
- * с этим упражнением. Для колено-чувствительных упражнений важно именно это.
- */
-export function latestPain(workouts, lastSession) {
-  const done = (workouts || [])
-    .filter((w) => w.status !== 'skipped' && Number.isFinite(Number(w.pain)))
-    .sort((a, b) => String(a.date).localeCompare(String(b.date)) || (a.id || 0) - (b.id || 0));
-  const newest = done[done.length - 1];
-  if (!newest) return Number(lastSession?.pain);
-  const ownDate = String(lastSession?.date || '');
-  return String(newest.date) >= ownDate ? Number(newest.pain) : Number(lastSession?.pain);
 }
 
 /** Сколько дней прошло с последней сессии по упражнению (null, если сегодняшняя дата не передана). */
@@ -211,15 +178,6 @@ export function layoffFactor(gapDays) {
   if (gapDays >= 35) return { factor: 0.8, note: `перерыв ${gapDays} дн. — минус 20%` };
   if (gapDays >= 21) return { factor: 0.9, note: `перерыв ${gapDays} дн. — минус 10%` };
   return { factor: 1, note: null };
-}
-
-/** Два раза подряд боль ≥6 — ноги только кардио, к врачу. */
-export function kneeAlarm(workouts) {
-  const sorted = [...workouts]
-    .filter((w) => Number.isFinite(Number(w.pain)))
-    .sort((a, b) => String(a.date).localeCompare(String(b.date)) || a.id - b.id);
-  const n = sorted.length;
-  return n >= 2 && Number(sorted[n - 1].pain) >= 6 && Number(sorted[n - 2].pain) >= 6;
 }
 
 /**

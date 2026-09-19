@@ -35,11 +35,6 @@ export default function Progress({ state, reload }) {
       </div>
 
       <div className="card">
-        <h2>Боль в колене</h2>
-        <LineChart points={sorted.filter((w) => w.pain != null).map((w) => ({ x: fmtDate(w.date), y: w.pain }))} unit="/10" height={120} yMin={0} yMax={10} />
-      </div>
-
-      <div className="card">
         <h2>Рабочий вес</h2>
         <select value={exId || ''} onChange={(e) => setExId(e.target.value)} style={{ marginBottom: 8 }}>
           {allItems.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}

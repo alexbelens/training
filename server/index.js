@@ -8,7 +8,7 @@ import { checkForUpdate, CURRENT_VERSION, REPO } from './update-check.js';
 import { scheduleBackups, runBackup } from './backup.js';
 import { sendMail, MAIL_ENABLED } from './mail.js';
 import { validateProgram } from '../shared/constraints.js';
-import { suggest, nextDayType, kneeAlarm } from '../shared/progression.js';
+import { suggest, nextDayType } from '../shared/progression.js';
 import { scheduleAround, missedDays, nextPlanned, adherence, normalizeSchedule, nextTypeInRotation } from '../shared/schedule.js';
 import { cyclePosition, phaseLabel } from '../shared/mesocycle.js';
 import { goalsSummary, GOAL_KINDS } from '../shared/goals.js';
@@ -185,7 +185,6 @@ api.get('/state', (req, res) => {
     next_planned: nextPlanned(profile, workouts, program, now),
     missed: missedDays(profile, workouts, program, now, 21),
     adherence: adherence(profile, workouts, program, now),
-    knee_alarm: kneeAlarm(workouts),
     cycle: { ...cyclePosition(profile, now), label: phaseLabel(cyclePosition(profile, now)) },
     goals: goalsSummary(store.listGoals(uid), { profile, weights: store.listWeights(uid), workouts, program, today: now }).list,
     gyms,
@@ -213,7 +212,7 @@ api.get('/program', (req, res) => res.json(store.getProgram(req.user.id)));
 api.get('/program/history', (req, res) => res.json(store.programHistory(req.user.id)));
 api.get('/program/:id', (req, res) => { const p = store.getProgramVersion(req.user.id, Number(req.params.id)); p ? res.json(p) : res.status(404).json({ error: 'not_found' }); });
 /** Поля, которые легко потерять при пересборке программы: их доносим из прошлой версии по id. */
-const INHERITED_ITEM_FIELDS = ['machine_type', 'per_side', 'per_hand', 'step', 'knee_sensitive', 'no_progression', 'warmup', 'bodyweight', 'unit'];
+const INHERITED_ITEM_FIELDS = ['machine_type', 'per_side', 'per_hand', 'step', 'no_progression', 'warmup_sets', 'bodyweight', 'unit', 'rep_min', 'rep_max'];
 function inheritItemFields(program, previous) {
   if (!previous?.days) return program;
   const old = {};
@@ -250,8 +249,7 @@ api.get('/suggest/:day', (req, res) => {
   const activeGym = gyms.find((g) => g.id === profile.active_gym_id) || gyms[0] || null;
   const byType = machinesByType(activeGym?.machines || []);
   const when = req.query.date || today();
-  const opts = { adaptation: !!profile.adaptation_period, today: when, phase: cyclePosition(profile, when).phase,
-    painTracking: profile.pain_tracking || 'auto' };
+  const opts = { adaptation: !!profile.adaptation_period, today: when, phase: cyclePosition(profile, when).phase };
   res.json(Object.fromEntries(items.map((it) => [it.id, suggest(it, workouts, { ...opts, machineStep: machineStepFor(byType, it) })])));
 });
 
@@ -273,7 +271,7 @@ api.post('/skip', (req, res) => {
   if (existing) {
     return res.json(store.updateWorkout(req.user.id, existing.id, { status: 'skipped', notes: reason || existing.notes, exercises: [] }));
   }
-  res.json(store.createWorkout(req.user.id, { date, type, status: 'skipped', notes: reason || null, exercises: [], pain: null }));
+  res.json(store.createWorkout(req.user.id, { date, type, status: 'skipped', notes: reason || null, exercises: [] }));
 });
 api.put('/workouts/:id', (req, res) => {
   const w = store.updateWorkout(req.user.id, Number(req.params.id), req.body || {});

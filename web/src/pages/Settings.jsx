@@ -56,20 +56,12 @@ export default function Settings({ state, reload, onLogout }) {
           <Field label="Зал / оборудование"><input value={p.gym_equipment || ''} onChange={set('gym_equipment')} placeholder="Matrix" /></Field>
         </div>
         <Field label="Цели"><textarea value={p.goals || ''} onChange={set('goals')} placeholder="снижение веса, форма, укрепить колено…" /></Field>
-        <Field label="Здоровье / травмы (что должен знать тренер)"><textarea value={p.knee || ''} onChange={set('knee')} placeholder="колено: нестабильность надколенника, МРТ не сделано…" /></Field>
+        <Field label="Здоровье и травмы (что должен знать тренер)"><textarea value={p.health || p.knee || ''} onChange={set('health')} placeholder="что болит, какие движения избегать" /></Field>
         <Field label="Ограничения и правила"><textarea value={p.restrictions || ''} onChange={set('restrictions')} placeholder="разгибание ног — только верхняя треть амплитуды…" /></Field>
         <Field label="Чего не предлагать (отказался)"><textarea value={p.refused || ''} onChange={set('refused')} placeholder="hip thrust, скручивания…" /></Field>
         <Field label="Запрещённые упражнения — по одному в строке (валидатор не даст добавить их в программу)"><textarea value={forbidden} onChange={(e) => setForbidden(e.target.value)} /></Field>
-        <Field label="Боль в колене">
-          <select value={p.pain_tracking || 'auto'} onChange={(e) => setP({ ...p, pain_tracking: e.target.value })}>
-            <option value="auto">Спрашивать и снижать веса автоматически</option>
-            <option value="note">Спрашивать, но на веса не влиять</option>
-            <option value="off">Не спрашивать вовсе</option>
-          </select>
-        </Field>
-        <p className="tiny muted" style={{ marginTop: -4 }}>При автоматическом режиме боль 4–5 снижает вес на ногах на 15 процентов, 6 и выше — на 30.</p>
         <label className="check"><input type="checkbox" checked={!!p.adaptation_period} onChange={set('adaptation_period')} />Адаптационный период (2 рабочих подхода вместо 3)</label>
-        <label className="check"><input type="checkbox" checked={!!p.doctor_reminder} onChange={set('doctor_reminder')} />Напоминать про врача / МРТ</label>
+        
         <button className="btn-primary btn-block" onClick={saveProfile}>Сохранить профиль</button>
       </div>
 

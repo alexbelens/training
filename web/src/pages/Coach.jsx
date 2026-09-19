@@ -4,7 +4,7 @@ import { Field, fmtDate, useToast } from '../components/ui.jsx';
 
 export default function Coach({ state, reload }) {
   const toast = useToast();
-  const { reports, requests, knee_alarm } = state;
+  const { reports, requests } = state;
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -18,7 +18,6 @@ export default function Coach({ state, reload }) {
 
   return (
     <>
-      {knee_alarm && <div className="banner alarm"><span><b>Колено 6+ две тренировки подряд.</b> Ноги — только кардио без боли, к ортопеду.</span></div>}
       <div className="card">
         <h2>Тренер</h2>
         <p className="small muted">Разбор делает Claude: он заходит в базу, смотрит историю, боль и веса, и оставляет здесь отчёт и план на следующие тренировки. Если нужно — сам правит программу (появится новая версия).</p>
