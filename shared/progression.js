@@ -131,9 +131,11 @@ export function suggest(exercise, workouts, opts = {}) {
   if (w === 0) return null; // упражнение без веса — рекомендации нет
 
   const step = machineStep > 0 ? (exercise.per_side ? machineStep / 2 : machineStep) : (Number(exercise.step) || 2.5);
-  const pain = Number(last.workout.pain);
-  const painKnown = Number.isFinite(pain);
   const knee = !!exercise.knee_sensitive;
+  // Колено одно на все упражнения: берём самую свежую оценку боли, даже если она
+  // с другой тренировки. Иначе боль после дня A не влияла бы на ноги в дне B.
+  const pain = knee ? latestPain(workouts, last.workout) : Number(last.workout.pain);
+  const painKnown = Number.isFinite(pain);
 
   // Двойная прогрессия: прибавляем, только когда верх диапазона закрыт во всех рабочих подходах.
   const work = workingSets(last.exercise.sets).filter((s) => Number(s.w) === w);
@@ -173,6 +175,20 @@ export function suggest(exercise, workouts, opts = {}) {
   const left = range.max > range.min && bestReps ? ` (лучший подход был на ${bestReps})` : '';
   return withWarmup({ ...withStep, w, reps: range.max,
     note: `тот же вес, цель — ${range.max} повторов в каждом подходе${left}`, rule: 'keep', gap_days: gap });
+}
+
+/**
+ * Самая свежая оценка боли: из последней тренировки вообще, если она позже сессии
+ * с этим упражнением. Для колено-чувствительных упражнений важно именно это.
+ */
+export function latestPain(workouts, lastSession) {
+  const done = (workouts || [])
+    .filter((w) => w.status !== 'skipped' && Number.isFinite(Number(w.pain)))
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)) || (a.id || 0) - (b.id || 0));
+  const newest = done[done.length - 1];
+  if (!newest) return Number(lastSession?.pain);
+  const ownDate = String(lastSession?.date || '');
+  return String(newest.date) >= ownDate ? Number(newest.pain) : Number(lastSession?.pain);
 }
 
 /** Сколько дней прошло с последней сессии по упражнению (null, если сегодняшняя дата не передана). */
