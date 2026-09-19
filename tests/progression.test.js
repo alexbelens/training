@@ -33,12 +33,54 @@ test('первая тренировка — first', () => {
   assert.match(r.note, /подбери вес/);
 });
 
-test('пирамида: рабочий вес = максимум, всё чисто → +шаг (5 для жима сидя)', () => {
+test('пирамида не даёт прибавки: верхний подход один, это ещё не рабочий объём', () => {
   const hist = [wk('2026-09-05', 'A', 3, [ex('Жим ногами сидя (короткая амплитуда)', [{ w: 30, r: 10 }, { w: 40, r: 15 }, { w: 55, r: 16 }])])];
+  const r = suggest(legPress, hist);
+  assert.equal(r.w, 55, 'работаем с верхним весом, пока не наберём подходы');
+  assert.equal(r.rule, 'keep');
+});
+
+test('прибавка приходит, когда вес отработан нужным числом подходов', () => {
+  const hist = [wk('2026-09-05', 'A', 3, [ex('Жим ногами сидя (короткая амплитуда)', [{ w: 55, r: 12 }, { w: 55, r: 12 }, { w: 55, r: 12 }])])];
   const r = suggest(legPress, hist);
   assert.equal(r.w, 60);
   assert.equal(r.rule, 'up');
-  assert.equal(r.warmup, 35); // 60% от 60 = 36 → шаг 5 → 35
+  assert.equal(r.warmup, 35);
+});
+
+test('разминочные подходы не участвуют в расчёте', () => {
+  const hist = [wk('2026-09-05', 'A', 3, [ex('Жим ногами сидя (короткая амплитуда)', [{ w: 20, r: 10 }, { w: 55, r: 12 }, { w: 55, r: 12 }, { w: 55, r: 12 }])])];
+  assert.equal(suggest(legPress, hist).w, 60, '20 кг — явная разминка, её отбрасываем');
+});
+
+test('сброс веса внутри упражнения читается как рабочий вес поменьше', () => {
+  const lat2 = { id: 'a6', name: 'Тяга верхнего блока', target_sets: 3, target_reps: 12, step: 5 };
+  const hist = [wk('2026-09-10', 'A', 3, [ex('Тяга верхнего блока', [{ w: 50, r: 12 }, { w: 45, r: 12 }, { w: 45, r: 12 }])])];
+  const r = suggest(lat2, hist);
+  assert.equal(r.w, 45, 'сброс с 50 означает, что 50 было тяжело');
+  assert.equal(r.rule, 'keep');
+});
+
+test('двойная прогрессия: вес растёт только при закрытии верха диапазона', () => {
+  const bench = { id: 'a5', name: 'Жим лёжа', target_sets: 3, rep_min: 8, rep_max: 12, step: 5 };
+  const low = [wk('2026-09-10', 'A', 3, [ex('Жим лёжа', [{ w: 60, r: 8 }, { w: 60, r: 8 }, { w: 60, r: 8 }])])];
+  const r1 = suggest(bench, low);
+  assert.equal(r1.w, 60);
+  assert.equal(r1.rule, 'keep');
+  assert.equal(r1.rep_min, 8);
+  assert.equal(r1.rep_max, 12);
+  const top = [wk('2026-09-10', 'A', 3, [ex('Жим лёжа', [{ w: 60, r: 12 }, { w: 60, r: 12 }, { w: 60, r: 12 }])])];
+  const r2 = suggest(bench, top);
+  assert.equal(r2.w, 65);
+  assert.equal(r2.reps, 8, 'после прибавки повторы падают к низу диапазона');
+});
+
+test('разгрузочная неделя: вес ниже, подходов меньше', () => {
+  const hist = [wk('2026-09-10', 'A', 3, [ex('Жим ногами сидя (короткая амплитуда)', [{ w: 60, r: 12 }, { w: 60, r: 12 }, { w: 60, r: 12 }])])];
+  const r = suggest(legPress, hist, { phase: 'deload' });
+  assert.equal(r.sets, 2, 'на разгрузке подходов на один меньше');
+  assert.equal(r.w, 50, '60 × 0.9 = 54 → вниз по шагу 5');
+  assert.equal(r.rule, 'deload');
 });
 
 test('адаптационный период → 2 рабочих подхода', () => {

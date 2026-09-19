@@ -10,6 +10,7 @@ import { sendMail, MAIL_ENABLED } from './mail.js';
 import { validateProgram } from '../shared/constraints.js';
 import { suggest, nextDayType, kneeAlarm } from '../shared/progression.js';
 import { scheduleAround, missedDays, nextPlanned, adherence, normalizeSchedule, nextTypeInRotation } from '../shared/schedule.js';
+import { cyclePosition, phaseLabel } from '../shared/mesocycle.js';
 import { isMachineType, machinesByType, missingTypes, machineStepFor } from '../shared/machine-types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -184,6 +185,7 @@ api.get('/state', (req, res) => {
     missed: missedDays(profile, workouts, program, now, 21),
     adherence: adherence(profile, workouts, program, now),
     knee_alarm: kneeAlarm(workouts),
+    cycle: { ...cyclePosition(profile, now), label: phaseLabel(cyclePosition(profile, now)) },
     gyms,
     active_gym_id: activeGym?.id ?? null,
     machines_by_type: machinesByType(activeGym?.machines || []),
@@ -245,7 +247,8 @@ api.get('/suggest/:day', (req, res) => {
   const gyms = store.listGyms(uid);
   const activeGym = gyms.find((g) => g.id === profile.active_gym_id) || gyms[0] || null;
   const byType = machinesByType(activeGym?.machines || []);
-  const opts = { adaptation: !!profile.adaptation_period, today: req.query.date || today() };
+  const when = req.query.date || today();
+  const opts = { adaptation: !!profile.adaptation_period, today: when, phase: cyclePosition(profile, when).phase };
   res.json(Object.fromEntries(items.map((it) => [it.id, suggest(it, workouts, { ...opts, machineStep: machineStepFor(byType, it) })])));
 });
 

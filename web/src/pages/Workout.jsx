@@ -107,7 +107,7 @@ export default function Workout({ state, reload, setTab }) {
         </div>
       )}
 
-      {perWeek > 0 && <PlanCard className="plan" planned={planned} missed={missed} adherence={adherence} onStart={start} onSkip={skip} today={state.today} />}
+      {perWeek > 0 && <PlanCard className="plan" planned={planned} missed={missed} adherence={adherence} cycle={cycle} onStart={start} onSkip={skip} today={state.today} />}
 
       <div className="card session">
         <div className="row between">
@@ -128,7 +128,7 @@ export default function Workout({ state, reload, setTab }) {
                 <span className="grow">{it.name}</span>
                 {it.cardio ? <span className="muted">{it.duration}</span>
                   : s?.first ? <span className="muted">подобрать вес</span>
-                  : s ? <span className="accent">{s.w}{weightUnit(it).short} × {s.reps} × {s.sets}</span>
+                  : s ? <span className="accent">{s.w}{weightUnit(it).short} × {repsLabel(s)} × {s.sets}</span>
                   : <span className="muted">{it.target_sets}×{it.target_reps}{it.unit ? ' ' + it.unit : ''}</span>}
               </div>
             );
@@ -166,9 +166,12 @@ export default function Workout({ state, reload, setTab }) {
   );
 }
 
+/** «8–12», если у упражнения диапазон, иначе просто число. */
+const repsLabel = (t) => (t?.rep_min && t?.rep_max && t.rep_max > t.rep_min ? `${t.rep_min}–${t.rep_max}` : t?.reps);
+
 const dowNum = (date) => (new Date(`${String(date).slice(0, 10)}T00:00:00Z`).getUTCDay() || 7);
 
-function PlanCard({ className = '', planned, missed, adherence, onStart, onSkip, today }) {
+function PlanCard({ className = '', planned, missed, adherence, cycle, onStart, onSkip, today }) {
   const [skipping, setSkipping] = useState(null); // {date, type}
   const [reason, setReason] = useState('');
   const isToday = planned?.status === 'today';
@@ -184,6 +187,11 @@ function PlanCard({ className = '', planned, missed, adherence, onStart, onSkip,
           </span>
         )}
       </div>
+      {cycle?.configured && (
+        <div className={'chip ' + (cycle.deload ? 'bad' : 'accent')} style={{ marginBottom: 6 }}>
+          {cycle.deload ? 'разгрузочная неделя' : `цикл ${cycle.cycle}, неделя ${cycle.week} из ${cycle.total}`}
+        </div>
+      )}
 
       {planned ? (
         <>
@@ -328,7 +336,7 @@ function Editor({ w, setW, state, program, suggestions, onMinimize, onDiscard, o
             {s && !s.first && (
               <div className="sugg" style={{ margin: '8px 0' }}>
                 <span>
-                  Рекомендация: <b>{s.w} {weightUnit(it).label} × {s.reps} × {s.sets}</b>
+                  Рекомендация: <b>{s.w} {weightUnit(it).label} × {repsLabel(s)} × {s.sets}</b>
                   {s.warmup ? <span className="muted"> · разминка {s.warmup}</span> : null}
                   {weightUnit(it).total && <div className="tiny accent">по {s.w} с каждой стороны, суммарно {s.w * 2} кг{s.warmup ? ` · разминка ${s.warmup} с каждой` : ''}</div>}
                   <div className="tiny muted">{s.note}</div>

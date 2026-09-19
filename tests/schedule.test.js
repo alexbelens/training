@@ -95,8 +95,9 @@ test('adherence считает выполненные, пропущенные и
 test('коэффициент детренированности растёт с длиной паузы', () => {
   assert.equal(layoffFactor(null).factor, 1);
   assert.equal(layoffFactor(7).factor, 1);
-  assert.equal(layoffFactor(14).factor, 0.9);
-  assert.equal(layoffFactor(30).factor, 0.8);
+  assert.equal(layoffFactor(14).factor, 1, 'две недели — ещё не потеря формы');
+  assert.equal(layoffFactor(21).factor, 0.9);
+  assert.equal(layoffFactor(40).factor, 0.8);
   assert.equal(layoffFactor(60).factor, 0.6);
   assert.equal(layoffDays('2026-09-01', '2026-09-15'), 14);
   assert.equal(layoffDays('2026-09-01', null), null);
@@ -107,15 +108,15 @@ const clean = [{ id: 1, date: '2026-08-01', type: 'A', pain: 2, exercises: [{ na
 
 test('без перерыва вес растёт, после паузы — снижается', () => {
   assert.equal(suggest(press, clean, { today: '2026-08-04' }).w, 55);
-  assert.equal(suggest(press, clean, { today: '2026-08-20' }).rule, 'layoff');
-  assert.equal(suggest(press, clean, { today: '2026-08-20' }).w, 45); // 19 дней → −10%
+  assert.equal(suggest(press, clean, { today: '2026-08-25' }).rule, 'layoff');
+  assert.equal(suggest(press, clean, { today: '2026-08-25' }).w, 45); // 24 дня → −10%
   assert.equal(suggest(press, clean, { today: '2026-10-01' }).w, 30); // 61 день → −40%
 });
 
 test('боль и перерыв вместе: берётся более осторожное снижение', () => {
   const knee = { id: 'a2', name: 'Жим ногами сидя', target_sets: 3, target_reps: 10, knee_sensitive: true, step: 5 };
   const hist = [{ id: 1, date: '2026-08-01', type: 'A', pain: 7, exercises: [{ name: 'Жим ногами сидя', done: true, sets: [{ w: 50, r: 10 }, { w: 50, r: 10 }, { w: 50, r: 10 }] }] }];
-  const r = suggest(knee, hist, { today: '2026-08-20' }); // боль −30% против перерыва −10%
+  const r = suggest(knee, hist, { today: '2026-08-25' }); // боль −30% против перерыва −10%
   assert.equal(r.w, 35);
   assert.equal(r.rule, 'pain6');
 });
