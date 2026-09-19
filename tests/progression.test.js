@@ -303,3 +303,18 @@ test('на упражнения без пометки про колено чуж
   ];
   assert.equal(suggest(lat2, hist).rule, 'up');
 });
+
+test('упражнение с пометкой pain_exempt не режется из-за боли в другом движении', () => {
+  const ext = { id: 'b3', name: 'Разгибание ног', target_sets: 2, rep_min: 12, rep_max: 15,
+    knee_sensitive: true, pain_exempt: true, no_progression: true, step: 2.5 };
+  const hist = [
+    wk('2026-09-13', 'B', 0, [ex('Разгибание ног', [{ w: 15, r: 15 }, { w: 15, r: 15 }])]),
+    wk('2026-09-19', 'A', 4, [ex('Жим ногами сидя (короткая амплитуда)', [{ w: 65, r: 10 }])]),
+  ];
+  const r = suggest(ext, hist);
+  assert.equal(r.w, 15, 'вес не снижается');
+  assert.equal(r.rule, 'hold');
+  // без пометки — снижение работает как прежде
+  const r2 = suggest({ ...ext, pain_exempt: false }, hist);
+  assert.equal(r2.rule, 'pain4');
+});

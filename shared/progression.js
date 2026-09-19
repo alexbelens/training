@@ -150,9 +150,13 @@ export function suggest(exercise, workouts, opts = {}) {
   const gap = layoffDays(last.workout.date, opts.today);
   const layoff = layoffFactor(gap);
 
+  // Снижаем по боли только те упражнения, где колено сгибается под нагрузкой.
+  // Упражнение с пометкой pain_exempt (например, разгибание в верхней трети — колено почти прямое)
+  // переносится нормально даже в болезненный период, резать его не нужно.
+  const scaleByPain = knee && !exercise.pain_exempt;
   let painFactor = 1, painNote = null, painRule = null;
-  if (knee && painKnown && pain >= 6) { painFactor = 0.7; painNote = 'колено 6+ — минус 30%'; painRule = 'pain6'; }
-  else if (knee && painKnown && pain >= 4) { painFactor = 0.85; painNote = 'колено 4–5 — минус 15%'; painRule = 'pain4'; }
+  if (scaleByPain && painKnown && pain >= 6) { painFactor = 0.7; painNote = 'колено 6+ — минус 30%'; painRule = 'pain6'; }
+  else if (scaleByPain && painKnown && pain >= 4) { painFactor = 0.85; painNote = 'колено 4–5 — минус 15%'; painRule = 'pain4'; }
 
   const deloadFactor = deload ? 0.9 : 1;
   const factor = Math.min(painFactor, layoff.factor, deloadFactor);
