@@ -40,7 +40,7 @@ function blankFromProgram(items, suggestions) {
 
 export default function Workout({ state, reload, setTab }) {
   const toast = useToast();
-  const { program, profile, workouts, next_day, next_planned, missed = [], adherence } = state;
+  const { program, profile, workouts, next_day, next_planned, missed = [], adherence, cycle } = state;
   const [editing, setEditing] = useState(null); // {id?, date, type, exercises, pain, notes}
   const [draft, setDraft] = useState(readDraft);   // незаконченная тренировка, к ней можно вернуться
   useEffect(() => { if (editing) writeDraft(editing); }, [editing]);
