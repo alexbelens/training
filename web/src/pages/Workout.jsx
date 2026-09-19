@@ -19,7 +19,7 @@ const writeDraft = (w) => { try { w ? localStorage.setItem(DRAFT_KEY, JSON.strin
 /** Есть ли что терять: заполненный подход, заметка, боль или отметка «готово». */
 const hasData = (w) => !!w && (
   (w.notes || '').trim() !== '' ||
-  (w.exercises || []).some((e) => e.done || e.skipped || (e.duration || '') !== '' || (e.sets || []).some((s) => s.w !== '' || s.r !== ''))
+  (w.exercises || []).some((e) => e.done || e.skipped || (e.note || '') !== '' || (e.duration || '') !== '' || (e.sets || []).some((s) => s.w !== '' || s.r !== ''))
 );
 
 function blankFromProgram(items, suggestions) {
@@ -163,6 +163,10 @@ export default function Workout({ state, reload, setTab }) {
             <div>
               <div><b>{fmtDate(w.date)}</b> · {DOW_SHORT[dowNum(w.date)]} · день {w.type} <span className="muted small">· {w.exercises.filter((e) => e.done).length}/{w.exercises.filter((e) => !e.skipped).length} упр.</span></div>
               <div className="small muted">тоннаж {Math.round(tonnage(w, program))} кг</div>
+              {w.notes && <div className="small" style={{ marginTop: 2 }}>{w.notes}</div>}
+              {(w.exercises || []).filter((e) => (e.note || '').trim()).map((e, k) => (
+                <div key={k} className="tiny muted">{e.name}: {e.note}</div>
+              ))}
               {w.exercises.filter((e) => e.skipped).map((e, k) => (
                 <div key={k} className="tiny muted">пропущено: {e.name}{e.skip_reason ? ` — ${e.skip_reason}` : ''}</div>
               ))}
@@ -380,6 +384,14 @@ function Editor({ w, setW, state, program, suggestions, onMinimize, onDiscard, o
                   </div>
                 ))}
                 <button className="btn-sm btn-ghost" onClick={() => updSets(i, (sets) => [...sets, { w: sets.at(-1)?.w ?? '', r: sets.at(-1)?.r ?? '' }])}>+ подход</button>
+                {ex.note === undefined || ex.note === null ? (
+                  <button className="btn-sm btn-ghost" onClick={() => upd(i, { note: '' })}>+ заметка к упражнению</button>
+                ) : (
+                  <Field label="Заметка по упражнению">
+                    <input value={ex.note} autoFocus onChange={(e) => upd(i, { note: e.target.value })}
+                      placeholder="щёлкало на третьем подходе, тренажёр был занят, техника поплыла…" />
+                  </Field>
+                )}
                 {weightUnit(it).total && ex.sets.some((st) => Number(st.w) > 0) && (
                   <div className="tiny muted">вводишь вес одной стороны: {ex.sets.filter((st) => Number(st.w) > 0).map((st) => `${st.w}+${st.w}=${Number(st.w) * 2}`).join(', ')}</div>
                 )}
@@ -393,7 +405,12 @@ function Editor({ w, setW, state, program, suggestions, onMinimize, onDiscard, o
       </div>
 
       <div className="card">
-        <Field label="Заметки"><textarea value={w.notes || ''} onChange={(e) => setW({ ...w, notes: e.target.value })} placeholder="самочувствие, что заменил, что болело…" /></Field>
+        <h3>Как прошла тренировка</h3>
+        <Field label="Ощущения, самочувствие, что мешало или наоборот шло легко (необязательно)">
+          <textarea value={w.notes || ''} onChange={(e) => setW({ ...w, notes: e.target.value })}
+            placeholder="например: спал мало, первые подходы тяжело; или — лёгкость, вес шёл сам, можно прибавлять" />
+        </Field>
+        <p className="tiny muted">Это видит тренер при разборе и учитывает в рекомендациях.</p>
         {warn > 0 && (
           <div className="banner alarm" style={{ marginTop: 10 }}>
             <span className="small">
