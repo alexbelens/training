@@ -15,7 +15,7 @@ export const DEFAULT_PROGRAM = {
     ],
     B: [
       { id: 'b1', name: 'Разминка: дорожка в горку 5–8% или вело', cardio: true, duration: '5–10 мин', machine: 'Кардио-зона', technique: '4,5–5,5 км/ч', machine_type: 'treadmill' },
-      { id: 'b2', name: 'Румынская тяга с гантелями', target_sets: 3, target_reps: 12, knee_sensitive: true, per_hand: true, step: 2, machine: 'Стойка с гантелями', technique: 'Колени чуть согнуты и зафиксированы, таз назад, спина прямая, гантели до середины голени. Вес — одной гантели', machine_type: 'dumbbells' },
+      { id: 'b2', name: 'Румынская тяга с гантелями', target_sets: 3, target_reps: 12, per_hand: true, step: 2, machine: 'Стойка с гантелями', technique: 'Колени чуть согнуты и ЗАФИКСИРОВАНЫ — движение только в тазу, сустав не сгибается. Таз назад, спина прямая, гантели до середины голени. Вес — одной гантели', machine_type: 'dumbbells' },
       { id: 'b3', name: 'Разгибание ног (ограниченно)', target_sets: 2, target_reps: 15, knee_sensitive: true, no_progression: true, step: 2.5, machine: '«Leg Extension», валик спереди', technique: 'ТОЛЬКО верхняя треть амплитуды (~45° → выпрямление), лёгкий вес. Щелчки/боль → изометрия 10 сек', machine_type: 'leg_extension' },
       { id: 'b4', name: 'Гиперэкстензия', target_sets: 3, target_reps: 12, no_progression: true, step: 2.5, machine: '«Back Extension» 45°', technique: 'До прямой линии, не переразгибаться. Вес не добавлять, пока 3×12 без веса не станут лёгкими', machine_type: 'back_extension' },
       { id: 'b5', name: 'Горизонтальная тяга', target_sets: 3, target_reps: 12, step: 5, machine: '«Seated Row» (тросовый или рычажный)', technique: 'К поясу, лопатки свести, без раскачки', machine_type: 'seated_row' },
