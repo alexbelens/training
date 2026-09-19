@@ -35,9 +35,13 @@ function blankFromProgram(items, suggestions) {
       const v = prev.length ? (prev[k] ?? prev[prev.length - 1]) : fallback;
       return v ? String(v) : '';
     };
+    // Сначала разминочная рампа, потом рабочие подходы одним весом.
+    const warm = (s && !s.first && Array.isArray(s.warmups) ? s.warmups : [])
+      .map((x) => ({ w: String(x.w), r: String(x.r), warmup: true }));
+    const workSets = Array.from({ length: n }, (_, k) => ({ w: s && !s.first ? s.w : '', r: repsFor(k) }));
     return {
       program_id: it.id, name: it.name, done: false,
-      sets: Array.from({ length: n }, (_, k) => ({ w: s && !s.first ? s.w : '', r: repsFor(k) })),
+      sets: it.cardio ? [] : [...warm, ...workSets],
       duration: '',
     };
   });
@@ -283,7 +287,7 @@ function Editor({ w, setW, state, program, suggestions, onMinimize, onDiscard, o
       const body = { ...w, exercises: w.exercises.map((e) => (
         e.skipped
           ? { ...e, done: false, sets: [], skip_reason: (e.skip_reason || '').trim() }
-          : { ...e, sets: e.sets.filter((s) => s.w !== '' || s.r !== '').map((s) => ({ w: Number(s.w) || 0, r: Number(s.r) || 0 })) }
+          : { ...e, sets: e.sets.filter((s) => s.w !== '' || s.r !== '').map((s) => (s.warmup ? { w: Number(s.w) || 0, r: Number(s.r) || 0, warmup: true } : { w: Number(s.w) || 0, r: Number(s.r) || 0 })) }
       )) };
       if (w.id) await api.put(`/api/workouts/${w.id}`, body); else await api.post('/api/workouts', body);
       toast('Сохранено'); await reload(); onFinish();
@@ -342,15 +346,23 @@ function Editor({ w, setW, state, program, suggestions, onMinimize, onDiscard, o
               <div className="sugg" style={{ margin: '8px 0' }}>
                 <span>
                   Рекомендация: <b>{s.w} {weightUnit(it).label} × {repsLabel(s)} × {s.sets}</b>
-                  {s.warmup ? <span className="muted"> · разминка {s.warmup}</span> : null}
+                  {s.warmups?.length > 0 && (
+                    <div className="tiny muted">разминка: {s.warmups.map((x) => `${x.w}×${x.r}`).join(', ')}</div>
+                  )}
                   {weightUnit(it).total && <div className="tiny accent">по {s.w} с каждой стороны, суммарно {s.w * 2} кг{s.warmup ? ` · разминка ${s.warmup} с каждой` : ''}</div>}
                   <div className="tiny muted">{s.note}</div>
                 </span>
-                <button className="btn-sm" onClick={() => updSets(i, (sets) => Array.from({ length: s.sets }, (_, k) => {
+                <button className="btn-sm" onClick={() => updSets(i, (sets) => {
                   const prev = Array.isArray(s.prev_reps) ? s.prev_reps : [];
                   const fallback = s.rep_min ?? s.reps;
-                  return { ...(sets[k] || {}), w: s.w, r: sets[k]?.r || String((prev.length ? (prev[k] ?? prev[prev.length - 1]) : fallback) ?? '') };
-                }))}>применить</button>
+                  const warm = sets.filter((x) => x.warmup);
+                  const work = sets.filter((x) => !x.warmup);
+                  const next = Array.from({ length: s.sets }, (_, k) => ({
+                    ...(work[k] || {}), w: s.w,
+                    r: work[k]?.r || String((prev.length ? (prev[k] ?? prev[prev.length - 1]) : fallback) ?? ''),
+                  }));
+                  return [...warm, ...next];
+                })}>применить</button>
               </div>
             )}
             {s?.first && <div className="sugg" style={{ margin: '8px 0' }}><span className="small">{s.note}</span></div>}
@@ -360,8 +372,8 @@ function Editor({ w, setW, state, program, suggestions, onMinimize, onDiscard, o
               <div className="stack">
                 <div className="set-row tiny muted"><span /><span className="n">{weightUnit(it).label}</span><span /><span className="n">{it?.unit || 'повт.'}</span><span /></div>
                 {ex.sets.map((st, j) => (
-                  <div key={j} className="set-row">
-                    <span className="n">{j + 1}</span>
+                  <div key={j} className={'set-row' + (st.warmup ? ' warmup' : '')}>
+                    <span className="n">{st.warmup ? 'р' : ex.sets.slice(0, j).filter((x) => !x.warmup).length + 1}</span>
                     <input className="num" type="text" inputMode="decimal" enterKeyHint="next" value={st.w} placeholder="0" onChange={(e) => updSet(i, j, { w: asDecimal(e.target.value) })} />
                     <span className="x">×</span>
                     <input className="num" type="text" inputMode="numeric" enterKeyHint="next" value={st.r} placeholder="—" onChange={(e) => updSet(i, j, { r: asInt(e.target.value) })} />

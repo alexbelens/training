@@ -45,7 +45,25 @@ test('прибавка приходит, когда вес отработан н
   const r = suggest(legPress, hist);
   assert.equal(r.w, 60);
   assert.equal(r.rule, 'up');
-  assert.equal(r.warmup, 35);
+  assert.deepEqual(r.warmups, [{ w: 30, r: 8, warmup: true }, { w: 45, r: 5, warmup: true }], 'рампа к рабочему весу');
+});
+
+test('разминочная рампа: два подхода для базы, один для среднего веса, ноль для лёгкого', () => {
+  const heavy = { id: 'x', name: 'База', target_sets: 3, target_reps: 10, step: 5 };
+  const hist = (w) => [wk('2026-09-10', 'A', 2, [ex('База', [{ w, r: 10 }, { w, r: 10 }, { w, r: 10 }])])];
+  assert.equal(suggest(heavy, hist(60)).warmups.length, 2);
+  assert.equal(suggest(heavy, hist(25)).warmups.length, 1);
+  assert.equal(suggest({ ...heavy, warmup_sets: 0 }, hist(60)).warmups.length, 0, 'можно отключить у упражнения');
+});
+
+test('разминочные подходы не влияют на прогрессию', () => {
+  const bench = { id: 'a5', name: 'Жим', target_sets: 3, rep_min: 8, rep_max: 12, step: 5 };
+  const hist = [wk('2026-09-10', 'A', 2, [ex('Жим', [
+    { w: 30, r: 8, warmup: true }, { w: 45, r: 5, warmup: true },
+    { w: 60, r: 12 }, { w: 60, r: 12 }, { w: 60, r: 12 },
+  ])])];
+  const r = suggest(bench, hist);
+  assert.equal(r.w, 65, 'три рабочих по 12 закрыты — прибавляем, разминка не мешает');
 });
 
 test('разминочные подходы не участвуют в расчёте', () => {

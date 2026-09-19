@@ -54,6 +54,27 @@ export function normName(n) {
  * Диапазон повторов упражнения. Двойная прогрессия живёт им: пока верх диапазона
  * не закрыт во всех рабочих подходах, вес не растёт.
  */
+/**
+ * Разминочные подходы к рабочему весу: 50% и 75% от рабочего.
+ * Их число берём из упражнения (`warmup_sets`), по умолчанию — два для тяжёлой базы,
+ * один для среднего веса и ноль для лёгкой изоляции.
+ */
+export function warmupSets(workWeight, step, exercise) {
+  const explicit = Number(exercise?.warmup_sets);
+  const count = Number.isFinite(explicit) && explicit >= 0
+    ? explicit
+    : (exercise?.warmup || workWeight >= 40 ? 2 : workWeight >= 20 ? 1 : 0);
+  if (!count || !(workWeight > 0)) return [];
+  const ratios = count >= 2 ? [0.5, 0.75] : [0.6];
+  const reps = count >= 2 ? [8, 5] : [8];
+  const out = [];
+  for (let i = 0; i < Math.min(count, ratios.length); i++) {
+    const w = floorToStep(workWeight * ratios[i], step);
+    if (w >= step && (out.length === 0 || w > out[out.length - 1].w)) out.push({ w, r: reps[i], warmup: true });
+  }
+  return out;
+}
+
 export function repRange(exercise) {
   const min = Number(exercise?.rep_min);
   const max = Number(exercise?.rep_max);
@@ -121,7 +142,8 @@ export function suggest(exercise, workouts, opts = {}) {
 
   const prevReps = work.map((x) => Number(x.r) || 0).filter((n) => n > 0);
   const withStep = { ...base, step, prev_reps: prevReps };
-  const withWarmup = (r) => (exercise.warmup ? { ...r, warmup: Math.max(step, roundToStep(r.w * 0.6, step)) } : r);
+  const withRamp = (r) => ({ ...r, warmups: warmupSets(r.w, step, exercise) });
+  const withWarmup = (r) => withRamp(r);
 
   const gap = layoffDays(last.workout.date, opts.today);
   const layoff = layoffFactor(gap);
