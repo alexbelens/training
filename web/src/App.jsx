@@ -6,6 +6,7 @@ import Auth from './pages/Auth.jsx';
 import Workout from './pages/Workout.jsx';
 import Program from './pages/Program.jsx';
 import Progress from './pages/Progress.jsx';
+import Goals from './pages/Goals.jsx';
 import Coach from './pages/Coach.jsx';
 import Gyms from './pages/Gyms.jsx';
 import Settings from './pages/Settings.jsx';
@@ -14,6 +15,7 @@ const TABS = [
   { id: 'workout', label: 'Тренировка', ic: '🏋️' },
   { id: 'program', label: 'Программа', ic: '📋' },
   { id: 'progress', label: 'Прогресс', ic: '📈' },
+  { id: 'goals', label: 'Цели', ic: '🎯' },
   { id: 'gyms', label: 'Залы', ic: '🏟' },
   { id: 'coach', label: 'Тренер', ic: '🧠' },
   { id: 'settings', label: 'Настройки', ic: '⚙️' },
@@ -62,7 +64,7 @@ export default function App() {
   if (!state) return <div className="app muted">Загрузка…</div>;
 
   const unread = state.reports.filter((r) => !r.seen).length;
-  const Page = { workout: Workout, program: Program, progress: Progress, gyms: Gyms, coach: Coach, settings: Settings }[tab];
+  const Page = { workout: Workout, program: Program, progress: Progress, goals: Goals, gyms: Gyms, coach: Coach, settings: Settings }[tab];
 
   return (
     <ToastProvider>

@@ -11,6 +11,7 @@ import { validateProgram } from '../shared/constraints.js';
 import { suggest, nextDayType, kneeAlarm } from '../shared/progression.js';
 import { scheduleAround, missedDays, nextPlanned, adherence, normalizeSchedule, nextTypeInRotation } from '../shared/schedule.js';
 import { cyclePosition, phaseLabel } from '../shared/mesocycle.js';
+import { goalsSummary, GOAL_KINDS } from '../shared/goals.js';
 import { isMachineType, machinesByType, missingTypes, machineStepFor } from '../shared/machine-types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -186,6 +187,7 @@ api.get('/state', (req, res) => {
     adherence: adherence(profile, workouts, program, now),
     knee_alarm: kneeAlarm(workouts),
     cycle: { ...cyclePosition(profile, now), label: phaseLabel(cyclePosition(profile, now)) },
+    goals: goalsSummary(store.listGoals(uid), { profile, weights: store.listWeights(uid), workouts, program, today: now }).list,
     gyms,
     active_gym_id: activeGym?.id ?? null,
     machines_by_type: machinesByType(activeGym?.machines || []),
@@ -362,6 +364,29 @@ api.delete('/machines/:id/photo', (req, res) => {
   const m = store.clearMachinePhoto(req.user.id, req.params.id);
   m ? res.json(m) : res.status(404).json({ error: 'not_found' });
 });
+
+// ---------- цели ----------
+api.get('/goals', (req, res) => {
+  const uid = req.user.id;
+  const workouts = store.listWorkouts(uid);
+  const ctx = { profile: store.getProfile(uid), weights: store.listWeights(uid), workouts, program: store.getProgram(uid), today: today() };
+  res.json(goalsSummary(store.listGoals(uid), ctx).list);
+});
+api.post('/goals', (req, res) => {
+  const g = req.body || {};
+  if (!GOAL_KINDS[g.kind]) return res.status(400).json({ error: 'неизвестный тип цели' });
+  if (!String(g.title || '').trim()) return res.status(400).json({ error: 'нужно название цели' });
+  res.json(store.createGoal(req.user.id, g));
+});
+api.put('/goals/:id', (req, res) => {
+  const g = store.updateGoal(req.user.id, req.params.id, req.body || {});
+  g ? res.json(g) : res.status(404).json({ error: 'not_found' });
+});
+api.post('/goals/:id/done', (req, res) => {
+  const g = store.updateGoal(req.user.id, req.params.id, { done_at: req.body?.done === false ? null : new Date().toISOString() });
+  g ? res.json(g) : res.status(404).json({ error: 'not_found' });
+});
+api.delete('/goals/:id', (req, res) => res.json({ ok: store.deleteGoal(req.user.id, req.params.id) }));
 
 // ---------- coach: пользовательская часть ----------
 api.get('/coach/reports', (req, res) => res.json(store.listReports(req.user.id, Number(req.query.limit) || 20)));

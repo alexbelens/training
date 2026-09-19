@@ -90,6 +90,21 @@ CREATE TABLE IF NOT EXISTS coach_requests (
   created_at TEXT NOT NULL DEFAULT (${NOW}),
   closed_at TEXT
 );
+CREATE TABLE IF NOT EXISTS goals (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL,
+  title TEXT NOT NULL,
+  exercise_id TEXT,
+  target TEXT NOT NULL DEFAULT '{}',
+  start_value REAL,
+  target_date TEXT,
+  note TEXT,
+  sort INTEGER NOT NULL DEFAULT 0,
+  done_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (${NOW})
+);
+CREATE INDEX IF NOT EXISTS goals_user ON goals(user_id, sort);
 CREATE TABLE IF NOT EXISTS gyms (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -305,6 +320,36 @@ export function closeRequest(userId, id, reportId = null) {
   db.prepare(`UPDATE coach_requests SET status = 'closed', answer_report_id = ?, closed_at = ${NOW} WHERE user_id = ? AND id = ?`).run(reportId, userId, id);
 }
 
+// ---------- цели ----------
+const rowToGoal = (r) => r && ({ ...r, target: p(r.target, {}) });
+export function listGoals(userId) {
+  return db.prepare('SELECT * FROM goals WHERE user_id = ? ORDER BY sort, id').all(userId).map(rowToGoal);
+}
+export function getGoal(userId, id) {
+  return rowToGoal(db.prepare('SELECT * FROM goals WHERE user_id = ? AND id = ?').get(userId, Number(id)));
+}
+export function createGoal(userId, g) {
+  const info = db.prepare(`INSERT INTO goals(user_id, kind, title, exercise_id, target, start_value, target_date, note, sort)
+    VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(userId, String(g.kind), String(g.title || ''), g.exercise_id || null,
+      j(g.target || {}), g.start_value == null || g.start_value === '' ? null : Number(g.start_value),
+      g.target_date || null, g.note || null, Number(g.sort) || 0);
+  return getGoal(userId, Number(info.lastInsertRowid));
+}
+export function updateGoal(userId, id, patch) {
+  const cur = getGoal(userId, id);
+  if (!cur) return null;
+  const v = (k) => (patch[k] !== undefined ? patch[k] : cur[k]);
+  db.prepare(`UPDATE goals SET kind = ?, title = ?, exercise_id = ?, target = ?, start_value = ?, target_date = ?, note = ?, sort = ?, done_at = ?
+    WHERE user_id = ? AND id = ?`).run(String(v('kind')), String(v('title')), v('exercise_id') || null,
+      j(patch.target !== undefined ? patch.target : cur.target),
+      v('start_value') == null || v('start_value') === '' ? null : Number(v('start_value')),
+      v('target_date') || null, v('note') || null, Number(v('sort')) || 0, v('done_at') || null, userId, Number(id));
+  return getGoal(userId, id);
+}
+export function deleteGoal(userId, id) {
+  return db.prepare('DELETE FROM goals WHERE user_id = ? AND id = ?').run(userId, Number(id)).changes > 0;
+}
+
 // ---------- export / import (формат раздела 6 спеки) ----------
 // ---------- залы и тренажёры ----------
 const machineRows = (userId, gymId) =>
@@ -397,6 +442,7 @@ export function exportAll(userId) {
       ...g,
       machines: machines.map(({ id: _i, gym_id: _g, photo: _p, ...m }) => m),
     })),
+    goals: listGoals(userId),
     coach_reports: listReports(userId, 50),
     coach_requests: listRequests(userId),
   };

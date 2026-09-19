@@ -102,6 +102,9 @@ pre.md { white-space: pre-wrap; font-family: var(--font); font-size: .9rem; line
 .dows button { padding: 10px 0; border-radius: 10px; font-size: .85rem; }
 .dows button.active { background: var(--accent); color: #111; border-color: var(--accent); font-weight: 600; }
 
+.bar { height: 6px; border-radius: 3px; background: var(--card2); overflow: hidden; margin-top: 8px; }
+.bar > span { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+
 /* ---------- desktop ---------- */
 .nav .nav-brand, .nav .nav-user { display: none; }
 .cols2 > .card, .days > .card, .ex-grid > .card { min-width: 0; }
