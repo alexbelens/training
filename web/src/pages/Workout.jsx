@@ -26,13 +26,18 @@ function blankFromProgram(items, suggestions) {
   return items.map((it) => {
     const s = suggestions[it.id];
     const n = it.cardio ? 0 : (s?.sets || it.target_sets || 3);
-    // Повторы подставляем так же, как вес: человек правит только то, что отличалось от плана.
-    // Раньше поле оставалось пустым, а целевое число показывалось лишь подсказкой — её принимали
-    // за значение, и каждый подход «сделал ровно как написано» сохранялся с нулём повторов.
-    const reps = s && !s.first ? (s.reps ?? it.target_reps) : it.target_reps;
+    // Повторы подставляем фактом прошлой тренировки, а не целью: если в прошлый раз
+    // на этом весе было 8, в поле должно стоять 8, иначе легко сохранить то, чего не делал.
+    // Цель диапазона остаётся в подсказке над полями.
+    const prev = (s && !s.first && Array.isArray(s.prev_reps) ? s.prev_reps : []);
+    const fallback = s && !s.first ? (s.rep_min ?? s.reps ?? it.target_reps) : it.target_reps;
+    const repsFor = (k) => {
+      const v = prev.length ? (prev[k] ?? prev[prev.length - 1]) : fallback;
+      return v ? String(v) : '';
+    };
     return {
       program_id: it.id, name: it.name, done: false,
-      sets: Array.from({ length: n }, () => ({ w: s && !s.first ? s.w : '', r: reps ? String(reps) : '' })),
+      sets: Array.from({ length: n }, (_, k) => ({ w: s && !s.first ? s.w : '', r: repsFor(k) })),
       duration: '',
     };
   });
@@ -341,7 +346,11 @@ function Editor({ w, setW, state, program, suggestions, onMinimize, onDiscard, o
                   {weightUnit(it).total && <div className="tiny accent">по {s.w} с каждой стороны, суммарно {s.w * 2} кг{s.warmup ? ` · разминка ${s.warmup} с каждой` : ''}</div>}
                   <div className="tiny muted">{s.note}</div>
                 </span>
-                <button className="btn-sm" onClick={() => updSets(i, (sets) => Array.from({ length: s.sets }, (_, k) => ({ ...(sets[k] || {}), w: s.w, r: sets[k]?.r || String(s.reps ?? '') })))}>применить</button>
+                <button className="btn-sm" onClick={() => updSets(i, (sets) => Array.from({ length: s.sets }, (_, k) => {
+                  const prev = Array.isArray(s.prev_reps) ? s.prev_reps : [];
+                  const fallback = s.rep_min ?? s.reps;
+                  return { ...(sets[k] || {}), w: s.w, r: sets[k]?.r || String((prev.length ? (prev[k] ?? prev[prev.length - 1]) : fallback) ?? '') };
+                }))}>применить</button>
               </div>
             )}
             {s?.first && <div className="sugg" style={{ margin: '8px 0' }}><span className="small">{s.note}</span></div>}

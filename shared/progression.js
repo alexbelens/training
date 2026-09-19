@@ -119,7 +119,8 @@ export function suggest(exercise, workouts, opts = {}) {
   const closed = work.length >= targetSets && work.every((s) => Number(s.r) >= range.max);
   const bestReps = work.length ? Math.max(...work.map((s) => Number(s.r) || 0)) : 0;
 
-  const withStep = { ...base, step };
+  const prevReps = work.map((x) => Number(x.r) || 0).filter((n) => n > 0);
+  const withStep = { ...base, step, prev_reps: prevReps };
   const withWarmup = (r) => (exercise.warmup ? { ...r, warmup: Math.max(step, roundToStep(r.w * 0.6, step)) } : r);
 
   const gap = layoffDays(last.workout.date, opts.today);
@@ -143,7 +144,8 @@ export function suggest(exercise, workouts, opts = {}) {
     return withWarmup({ ...withStep, w, reps: range.max, note: 'вес держим, растим только повторы', rule: 'hold', gap_days: gap });
   }
   if (closed) {
-    return withWarmup({ ...withStep, w: roundToStep(w + step, step), reps: range.min,
+    // новый вес — ждём низ диапазона, прошлые повторы к нему не относятся
+    return withWarmup({ ...withStep, prev_reps: [], w: roundToStep(w + step, step), reps: range.min,
       note: `${range.max} повторов закрыты во всех подходах — прибавляем, повторы падают к ${range.min}`, rule: 'up', gap_days: gap });
   }
   const left = range.max > range.min && bestReps ? ` (лучший подход был на ${bestReps})` : '';
