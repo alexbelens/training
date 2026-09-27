@@ -140,6 +140,30 @@ addColumn('machines', 'step', 'REAL');
 addColumn('machines', 'min_weight', 'REAL');
 addColumn('machines', 'max_weight', 'REAL');
 
+
+/**
+ * Транзакция, которую можно вкладывать: снаружи — обычная, внутри — точка сохранения.
+ * Иначе импорт (сам в транзакции) падал на сохранении программы с
+ * «cannot start a transaction within a transaction».
+ */
+let txDepth = 0;
+export function tx(fn) {
+  const name = `sp_${txDepth}`;
+  db.exec(`SAVEPOINT ${name}`);
+  txDepth++;
+  try {
+    const out = fn();
+    db.exec(`RELEASE ${name}`);
+    return out;
+  } catch (e) {
+    db.exec(`ROLLBACK TO ${name}`);
+    db.exec(`RELEASE ${name}`);
+    throw e;
+  } finally {
+    txDepth--;
+  }
+}
+
 const j = (v) => JSON.stringify(v);
 const p = (s, fallback = null) => { try { return s == null ? fallback : JSON.parse(s); } catch { return fallback; } };
 const iso = (d) => new Date(d).toISOString();
@@ -248,12 +272,10 @@ export function saveProgram(userId, program, { rationale = null, author = 'user'
   const cur = db.prepare('SELECT MAX(version) AS v FROM programs WHERE user_id = ?').get(userId);
   const version = (cur?.v || 0) + 1;
   const { id, version: _v, rationale: _r, author: _a, created_at: _c, ...data } = program;
-  db.exec('BEGIN');
-  try {
+  tx(() => {
     db.prepare('UPDATE programs SET active = 0 WHERE user_id = ?').run(userId);
     db.prepare('INSERT INTO programs(user_id, version, data, rationale, author, active) VALUES(?, ?, ?, ?, ?, 1)').run(userId, version, j({ ...data, version }), rationale, author);
-    db.exec('COMMIT');
-  } catch (e) { db.exec('ROLLBACK'); throw e; }
+  });
   return getProgram(userId);
 }
 
@@ -447,8 +469,7 @@ export function exportAll(userId) {
 }
 export function importAll(userId, data, { replace = true } = {}) {
   if (!data || typeof data !== 'object') throw new Error('Ожидался JSON-объект');
-  db.exec('BEGIN');
-  try {
+  tx(() => {
     if (replace) {
       db.prepare('DELETE FROM workouts WHERE user_id = ?').run(userId);
       db.prepare('DELETE FROM weights WHERE user_id = ?').run(userId);
@@ -467,8 +488,7 @@ export function importAll(userId, data, { replace = true } = {}) {
       if (existing) updateWorkout(userId, existing.id, w); else createWorkout(userId, { ...w, client_id: clientId });
     }
     for (const wt of data.weights || []) upsertWeight(userId, wt.date, wt.kg);
-    db.exec('COMMIT');
-  } catch (e) { db.exec('ROLLBACK'); throw e; }
+  });
   return exportAll(userId);
 }
 

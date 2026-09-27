@@ -185,7 +185,7 @@ api.get('/state', (req, res) => {
     next_planned: nextPlanned(profile, workouts, program, now),
     missed: missedDays(profile, workouts, program, now, 21),
     adherence: adherence(profile, workouts, program, now),
-    cycle: { ...cyclePosition(profile, now), label: phaseLabel(cyclePosition(profile, now)) },
+    cycle: (() => { const c = cyclePosition(profile, now, workouts); return { ...c, label: phaseLabel(c) }; })(),
     goals: goalsSummary(store.listGoals(uid), { profile, weights: store.listWeights(uid), workouts, program, today: now }).list,
     gyms,
     active_gym_id: activeGym?.id ?? null,
@@ -250,7 +250,7 @@ api.get('/suggest/:day', (req, res) => {
   const activeGym = gyms.find((g) => g.id === profile.active_gym_id) || gyms[0] || null;
   const byType = machinesByType(activeGym?.machines || []);
   const when = req.query.date || today();
-  const opts = { adaptation: !!profile.adaptation_period, today: when, phase: cyclePosition(profile, when).phase };
+  const opts = { adaptation: !!profile.adaptation_period, today: when, phase: cyclePosition(profile, when, workouts).phase };
   res.json(Object.fromEntries(items.map((it) => [it.id, suggest(it, workouts, { ...opts, machineStep: machineStepFor(byType, it) })])));
 });
 

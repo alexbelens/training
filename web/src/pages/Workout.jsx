@@ -137,7 +137,7 @@ export default function Workout({ state, reload, setTab }) {
                 <span className="grow">{it.name}</span>
                 {it.cardio ? <span className="muted">{it.duration}</span>
                   : s?.first ? <span className="muted">подобрать вес</span>
-                  : s ? <span className="accent">{s.w}{weightUnit(it).short} × {repsLabel(s)} × {s.sets}</span>
+                  : s ? <span className="accent">{s.w > 0 ? `${s.w}${weightUnit(it).short}` : 'без веса'} × {repsLabel(s)} × {s.sets}</span>
                   : <span className="muted">{it.target_sets}×{it.target_reps}{it.unit ? ' ' + it.unit : ''}</span>}
               </div>
             );
@@ -202,7 +202,9 @@ function PlanCard({ className = '', planned, missed, adherence, cycle, onStart, 
       </div>
       {cycle?.configured && (
         <div className={'chip ' + (cycle.deload ? 'bad' : 'accent')} style={{ marginBottom: 6 }}>
-          {cycle.deload ? 'разгрузочная неделя' : `цикл ${cycle.cycle}, неделя ${cycle.week} из ${cycle.total}`}
+          {cycle.mode === 'sessions'
+            ? (cycle.deload ? `разгрузка, ${cycle.session} из ${cycle.total}` : `блок ${cycle.cycle}: тренировка ${cycle.session} из ${cycle.total}`)
+            : (cycle.deload ? 'разгрузочная неделя' : `цикл ${cycle.cycle}, неделя ${cycle.week} из ${cycle.total}`)}
         </div>
       )}
 
@@ -366,7 +368,7 @@ function Editor({ w, setW, state, program, suggestions, onMinimize, onDiscard, o
             {s && !s.first && (
               <div className="sugg" style={{ margin: '8px 0' }}>
                 <span>
-                  Рекомендация: <b>{s.w} {weightUnit(it).label} × {repsLabel(s)} × {s.sets}</b>
+                  Рекомендация: <b>{s.w > 0 ? `${s.w} ${weightUnit(it).label}` : 'без веса'} × {repsLabel(s)} × {s.sets}</b>
                   {s.warmups?.length > 0 && (
                     <div className="tiny muted">разминка: {s.warmups.map((x) => `${x.w}×${x.r}`).join(', ')}</div>
                   )}

@@ -51,6 +51,26 @@ export function normName(n) {
  */
 
 /**
+ * Упражнение пока без веса (гиперэкстензия, отжимания): растим повторы,
+ * а когда верх диапазона закрыт во всех подходах — предлагаем взять первый блин.
+ * Упражнения на время (unit «сек») вес не получают.
+ */
+function bodyweightStep(exercise, last, range, base, sets) {
+  const done = (last.exercise.sets || []).filter((s) => Number(s.r) > 0 && !s.warmup);
+  const targetSets = Number(exercise.target_sets) || 3;
+  const closed = done.length >= targetSets && done.every((s) => Number(s.r) >= range.max);
+  const timed = /сек|мин/i.test(String(exercise.unit || ''));
+  if (closed && !timed && exercise.no_progression !== true) {
+    const load = Number(exercise.load_step) || 5;
+    return { ...base, sets, w: load, reps: range.min, step: load, prev_reps: [], warmups: [], rule: 'add_load',
+      note: `${targetSets} по ${range.max} без веса закрыты — берём блин ${load} кг, повторы падают к ${range.min}` };
+  }
+  const best = done.length ? Math.max(...done.map((s) => Number(s.r) || 0)) : 0;
+  return { ...base, sets, w: 0, reps: range.max, prev_reps: done.map((s) => Number(s.r) || 0), warmups: [], rule: 'keep',
+    note: `без веса, цель — ${range.max} в каждом подходе${best ? ` (лучший был на ${best})` : ''}` };
+}
+
+/**
  * Диапазон повторов упражнения. Двойная прогрессия живёт им: пока верх диапазона
  * не закрыт во всех рабочих подходах, вес не растёт.
  */
@@ -128,7 +148,7 @@ export function suggest(exercise, workouts, opts = {}) {
   }
   const last = sessions[sessions.length - 1];
   const w = effectiveWeight(last.exercise.sets);
-  if (w === 0) return null; // упражнение без веса — рекомендации нет
+  if (w === 0) return bodyweightStep(exercise, last, range, base, sets);
 
   const step = machineStep > 0 ? (exercise.per_side ? machineStep / 2 : machineStep) : (Number(exercise.step) || 2.5);
 

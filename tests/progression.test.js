@@ -122,9 +122,11 @@ test('меньше подходов, чем целевых → тот же ве�
   assert.equal(r.rule, 'keep');
 });
 
-test('без веса → null', () => {
+test('без веса и недобранные повторы: вес не появляется, цель — повторы', () => {
   const hist = [wk('2026-09-08', 'B', 2, [ex('Гиперэкстензия', [{ w: 0, r: 10 }, { w: 0, r: 10 }, { w: 0, r: 12 }])])];
-  assert.equal(suggest(hyper, hist), null);
+  const r = suggest(hyper, hist);
+  assert.equal(r.w, 0);
+  assert.equal(r.rule, 'keep');
 });
 
 test('no_progression с весом → закрепляем', () => {
@@ -249,3 +251,22 @@ test('для веса на сторону шаг тренажёра делитс
   assert.equal(suggest(shoulder, hist, { machineStep: 5 }).w, 17.5, 'блин 2,5 на каждую сторону = 5 суммарно');
 });
 
+
+test('собственный вес: закрыл верх диапазона — берёшь первый блин', () => {
+  const hyper = { id: 'b4', name: 'Гиперэкстензия', target_sets: 3, rep_min: 10, rep_max: 15, load_step: 5 };
+  const done = [wk('2026-09-24', 'B', null, [ex('Гиперэкстензия', [{ w: 0, r: 15 }, { w: 0, r: 15 }, { w: 0, r: 15 }])])];
+  const r = suggest(hyper, done);
+  assert.equal(r.rule, 'add_load');
+  assert.equal(r.w, 5);
+  assert.equal(r.reps, 10);
+  const notYet = [wk('2026-09-24', 'B', null, [ex('Гиперэкстензия', [{ w: 0, r: 15 }, { w: 0, r: 12 }, { w: 0, r: 12 }])])];
+  const r2 = suggest(hyper, notYet);
+  assert.equal(r2.rule, 'keep');
+  assert.equal(r2.w, 0);
+});
+
+test('упражнение на время веса не получает', () => {
+  const plank = { id: 'a8', name: 'Планка', target_sets: 3, target_reps: 30, unit: 'сек' };
+  const done = [wk('2026-09-24', 'A', null, [ex('Планка', [{ w: 0, r: 30 }, { w: 0, r: 30 }, { w: 0, r: 30 }])])];
+  assert.equal(suggest(plank, done).w, 0);
+});
