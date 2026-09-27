@@ -195,7 +195,7 @@ function PlanCard({ className = '', planned, missed, adherence, cycle, onStart, 
       <div className="row between">
         <h2>План</h2>
         {adherence?.planned > 0 && (
-          <span className="chip" title="выполнено из запланированного за последний месяц">
+          <span className="chip" title={adherence.flexible ? 'тренировок за последние 4 недели и норма' : 'выполнено из запланированного за последний месяц'}>
             за месяц {adherence.done} из {adherence.planned}
           </span>
         )}
@@ -206,7 +206,25 @@ function PlanCard({ className = '', planned, missed, adherence, cycle, onStart, 
         </div>
       )}
 
-      {planned ? (
+      {planned?.flexible ? (
+        <>
+          <p style={{ margin: '4px 0 4px' }}>
+            На этой неделе <b>{planned.week_done} из {planned.per_week}</b>
+            {planned.week_left === 0 ? ' — норма закрыта' : ''}
+          </p>
+          <div className="week-dots" style={{ marginBottom: 8 }}>
+            {Array.from({ length: planned.per_week }, (_, k) => <span key={k} className={k < planned.week_done ? 'on' : ''} />)}
+          </div>
+          {planned.status === 'done'
+            ? <p className="small muted">Сегодня уже потренировался. Следующая по очереди — {planned.suggested_type}.</p>
+            : (
+              <>
+                <p className="small" style={{ margin: '0 0 8px' }}>Следующая по очереди — тренировка <b className="accent">{planned.suggested_type}</b></p>
+                <button className="btn-primary btn-block" onClick={() => onStart(today, planned.suggested_type)}>Начать {planned.suggested_type}</button>
+              </>
+            )}
+        </>
+      ) : planned ? (
         <>
           <p style={{ margin: '4px 0 8px' }}>
             {isToday

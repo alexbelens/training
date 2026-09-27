@@ -120,6 +120,8 @@ export default function Settings({ state, reload, onLogout }) {
 function ScheduleCard({ profile, program, reload, toast }) {
   const types = Object.keys(program?.days || { A: [], B: [] });
   const [sch, setSch] = useState(normalizeSchedule(profile.schedule));
+  const [mode, setMode] = useState(profile.schedule_mode === 'flexible' ? 'flexible' : 'days');
+  const [perWeek, setPerWeek] = useState(Number(profile.per_week) || 2);
   const [busy, setBusy] = useState(false);
   const byDow = Object.fromEntries(sch.map((s) => [s.dow, s.type]));
 
@@ -135,7 +137,12 @@ function ScheduleCard({ profile, program, reload, toast }) {
 
   async function save() {
     setBusy(true);
-    try { await api.put('/api/profile', { schedule: sch }); toast('Расписание сохранено'); await reload(); }
+    try {
+      await api.put('/api/profile', mode === 'flexible'
+        ? { schedule_mode: 'flexible', per_week: perWeek }
+        : { schedule_mode: 'days', schedule: sch });
+      toast('Расписание сохранено'); await reload();
+    }
     catch (e) { toast(e.message); } finally { setBusy(false); }
   }
 
@@ -143,15 +150,30 @@ function ScheduleCard({ profile, program, reload, toast }) {
     <div className="card stack">
       <div className="row between">
         <h2>Расписание</h2>
-        <span className="chip accent">{sch.length ? `${sch.length} ${plural(sch.length)} в неделю` : 'не задано'}</span>
+        <span className="chip accent">{mode === 'flexible' ? `${perWeek} ${plural(perWeek)} в неделю` : sch.length ? `${sch.length} ${plural(sch.length)} в неделю` : 'не задано'}</span>
       </div>
-      <p className="small muted">Отметь дни, в которые ходишь в зал, и выбери, что делаешь в каждый из них. Пропуски можно отмечать на главном экране, они учитываются в рекомендациях весов.</p>
-      <div className="dows">
+      <div className="seg">
+        <button type="button" className={mode === 'flexible' ? 'active' : ''} onClick={() => setMode('flexible')}>Сколько раз в неделю</button>
+        <button type="button" className={mode === 'days' ? 'active' : ''} onClick={() => setMode('days')}>По дням недели</button>
+      </div>
+      {mode === 'flexible' ? (
+        <>
+          <p className="small muted">Ходишь в любые дни, приложение следит только за количеством за неделю и подсказывает, какая тренировка следующая. Пропущенных дней здесь не бывает.</p>
+          <div className="dows" style={{ gridTemplateColumns: 'repeat(6, 1fr)' }}>
+            {[1, 2, 3, 4, 5, 6].map((n) => (
+              <button key={n} type="button" className={perWeek === n ? 'active' : ''} onClick={() => setPerWeek(n)}>{n}</button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <p className="small muted">Отметь дни, в которые ходишь в зал, и выбери, что делаешь в каждый из них. Если день прошёл без тренировки, приложение предложит отметить пропуск.</p>
+      )}
+      {mode === 'days' && <div className="dows">
         {[1, 2, 3, 4, 5, 6, 7].map((d) => (
           <button key={d} type="button" className={byDow[d] ? 'active' : ''} onClick={() => toggle(d)}>{DOW_SHORT[d]}</button>
         ))}
-      </div>
-      {sch.length > 0 && (
+      </div>}
+      {mode === 'days' && sch.length > 0 && (
         <div className="stack">
           {sch.map((s) => (
             <div key={s.dow} className="row between">

@@ -30,13 +30,32 @@ export function normalizeSchedule(schedule) {
     .sort((a, b) => a.dow - b.dow);
 }
 
-export const weeklyCount = (profile) => normalizeSchedule(profile?.schedule).length;
+/**
+ * Два режима расписания:
+ *  - 'days' — конкретные дни недели (profile.schedule), пропущенный день считается пропуском;
+ *  - 'flexible' — N тренировок в неделю в любые дни (profile.per_week). Пропусков нет по определению,
+ *    считается только «сколько сделано на этой неделе». Типы идут по очереди A → B → A…
+ */
+export const isFlexible = (profile) => profile?.schedule_mode === 'flexible';
+
+export const weeklyCount = (profile) =>
+  isFlexible(profile) ? Math.max(0, Number(profile?.per_week) || 0) : normalizeSchedule(profile?.schedule).length;
+
+/** Понедельник недели, в которую попала дата. */
+export function weekStartOf(date) {
+  return addDays(date, -(dowOf(date) - 1));
+}
 
 const isDone = (w) => w && w.status !== 'skipped';
 const byDate = (a, b) => String(a.date).localeCompare(String(b.date)) || (a.id || 0) - (b.id || 0);
 
 /** Типы тренировок в порядке расписания, без повторов: ['A','B'] */
 export function rotationTypes(profile, program) {
+  if (isFlexible(profile)) {
+    const own = Array.isArray(profile?.rotation) ? profile.rotation.filter((t) => program?.days?.[t] || !program) : [];
+    if (own.length) return own;
+    return Object.keys(program?.days || { A: 1, B: 1 }).filter((d) => d !== 'C');
+  }
   const fromSchedule = [...new Set(normalizeSchedule(profile?.schedule).map((s) => s.type))];
   if (fromSchedule.length) return fromSchedule;
   return Object.keys(program?.days || {}).filter((d) => d !== 'C');
@@ -60,6 +79,7 @@ const findWorkout = (workouts, date) => (workouts || []).find((w) => String(w.da
  *   status: done | skipped | missed | today | future
  */
 export function scheduleAround(profile, workouts, program, today, { back = 14, forward = 21 } = {}) {
+  if (isFlexible(profile)) return []; // в гибком режиме плановых дней нет — и пропусков тоже
   const sch = normalizeSchedule(profile?.schedule);
   if (sch.length === 0) return [];
   const byDow = Object.fromEntries(sch.map((s) => [s.dow, s.type]));
@@ -99,12 +119,38 @@ export function missedDays(profile, workouts, program, today, back = 14) {
 
 /** Ближайшая тренировка: сегодняшняя, иначе следующая по расписанию. */
 export function nextPlanned(profile, workouts, program, today) {
+  if (isFlexible(profile)) {
+    const perWeek = weeklyCount(profile);
+    if (!perWeek) return null;
+    const type = nextTypeInRotation(workouts, profile, program);
+    const from = weekStartOf(today);
+    const weekDone = (workouts || []).filter(isDone).filter((w) => String(w.date).slice(0, 10) >= from && String(w.date).slice(0, 10) <= today).length;
+    const doneToday = (workouts || []).some((w) => isDone(w) && String(w.date).slice(0, 10) === today);
+    return {
+      date: today, dow: dowOf(today), flexible: true,
+      status: doneToday ? 'done' : 'today',
+      planned_type: type, suggested_type: type,
+      week_done: weekDone, per_week: perWeek, week_left: Math.max(0, perWeek - weekDone),
+    };
+  }
   const all = scheduleAround(profile, workouts, program, today, { back: 0, forward: 28 });
   return all.find((d) => d.status === 'today') || all.find((d) => d.status === 'future') || null;
 }
 
 /** Сколько тренировок выполнено за последние 28 дней против плана — «держишь ли режим». */
 export function adherence(profile, workouts, program, today, days = 28) {
+  if (isFlexible(profile)) {
+    const perWeek = weeklyCount(profile);
+    let from = addDays(today, -(days - 1));
+    const started = profile?.started_at ? String(profile.started_at).slice(0, 10) : null;
+    if (started && started > from) from = started;
+    const span = Math.max(1, daysBetween(from, today) + 1);
+    const done = (workouts || []).filter(isDone)
+      .filter((w) => { const d = String(w.date).slice(0, 10); return d >= from && d <= today; }).length;
+    const skipped = (workouts || []).filter((w) => w.status === 'skipped')
+      .filter((w) => { const d = String(w.date).slice(0, 10); return d >= from && d <= today; }).length;
+    return { planned: Math.round((perWeek * span) / 7), done, skipped, missed: 0, per_week: perWeek, flexible: true };
+  }
   const planned = scheduleAround(profile, workouts, program, today, { back: days, forward: 0 })
     .filter((d) => d.status !== 'today');
   const done = planned.filter((d) => d.status === 'done').length;

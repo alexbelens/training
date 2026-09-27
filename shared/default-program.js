@@ -43,6 +43,8 @@ export const DEFAULT_PROFILE = {
   // Расписание: какие дни недели тренировочные и что в них делаем.
   // [{ dow: 1..7 (Пн..Вс), type: 'A' }] — количество тренировок в неделю = длина массива.
   schedule: [],
+  schedule_mode: 'days',   // 'days' — по дням недели, 'flexible' — N раз в неделю в любые дни
+  per_week: 0,
   // Методика: блок из нескольких недель роста и одной разгрузочной
   cycle_start: null,
   cycle: { work_weeks: 4, deload_weeks: 1 },

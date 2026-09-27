@@ -122,3 +122,41 @@ test('пропущенная тренировка не берётся как п�
   const r = suggest(press, hist, { today: '2026-08-05' });
   assert.equal(r.w, 55, 'ориентируемся на последнюю реально выполненную');
 });
+
+// ---------- гибкий режим: N раз в неделю в любые дни ----------
+const flex = { schedule_mode: 'flexible', per_week: 2, started_at: '2026-09-01' };
+const PROG = { days: { A: [], B: [], C: [] } };
+
+test('гибкий режим: пропусков нет по определению', () => {
+  const hist = [w('2026-09-10', 'A'), w('2026-09-13', 'B')];
+  assert.deepEqual(missedDays(flex, hist, PROG, '2026-09-27', 30), []);
+  assert.deepEqual(scheduleAround(flex, hist, PROG, '2026-09-27'), []);
+  assert.equal(adherence(flex, hist, PROG, '2026-09-27').missed, 0);
+});
+
+test('гибкий режим: счёт за неделю и следующий тип по очереди', () => {
+  const hist = [w('2026-09-19', 'A'), w('2026-09-24', 'B')];
+  const n = nextPlanned(flex, hist, PROG, '2026-09-27'); // воскресенье той же недели, что и среда 24-е
+  assert.equal(n.flexible, true);
+  assert.equal(n.suggested_type, 'A', 'после B идёт A');
+  assert.equal(n.week_done, 1);
+  assert.equal(n.week_left, 1);
+  assert.equal(n.status, 'today');
+});
+
+test('гибкий режим: сделанная сегодня тренировка закрывает день', () => {
+  const hist = [w('2026-09-24', 'B'), w('2026-09-27', 'A')];
+  const n = nextPlanned(flex, hist, PROG, '2026-09-27');
+  assert.equal(n.status, 'done');
+  assert.equal(n.week_done, 2);
+  assert.equal(n.week_left, 0);
+});
+
+test('гибкий режим: норма за месяц считается от количества в неделю', () => {
+  const hist = [w('2026-09-10', 'A'), w('2026-09-13', 'B'), w('2026-09-19', 'A'), w('2026-09-24', 'B')];
+  const a = adherence(flex, hist, PROG, '2026-09-27', 28);
+  assert.equal(a.planned, 8);
+  assert.equal(a.done, 4);
+  assert.equal(a.flexible, true);
+  assert.equal(weeklyCount(flex), 2);
+});
