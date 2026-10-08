@@ -270,3 +270,36 @@ test('упражнение на время веса не получает', () =
   const done = [wk('2026-09-24', 'A', null, [ex('Планка', [{ w: 0, r: 30 }, { w: 0, r: 30 }, { w: 0, r: 30 }])])];
   assert.equal(suggest(plank, done).w, 0);
 });
+
+// ---------- что подставляется в поля ----------
+import { prefillSets } from '../shared/progression.js';
+
+test('после прибавки повторы в полях падают к низу диапазона', () => {
+  const lat2 = { id: 'a6', name: 'Тяга верхнего блока', target_sets: 3, rep_min: 10, rep_max: 12, step: 5 };
+  const hist = [wk('2026-09-27', 'A', null, [ex('Тяга верхнего блока', [{ w: 50, r: 12 }, { w: 50, r: 12 }, { w: 50, r: 12 }])])];
+  const s = suggest(lat2, hist);
+  assert.equal(s.w, 55);
+  const work = prefillSets(lat2, s).filter((x) => !x.warmup);
+  assert.deepEqual(work.map((x) => [x.w, x.r]), [['55', '10'], ['55', '10'], ['55', '10']]);
+});
+
+test('без прибавки — прошлые повторы, зажатые в диапазон', () => {
+  const bench2 = { id: 'a5', name: 'Жим', target_sets: 3, rep_min: 8, rep_max: 12, step: 5 };
+  const hist = [wk('2026-09-27', 'A', null, [ex('Жим', [{ w: 60, r: 12 }, { w: 60, r: 8 }, { w: 60, r: 14 }])])];
+  const work = prefillSets(bench2, suggest(bench2, hist)).filter((x) => !x.warmup);
+  assert.deepEqual(work.map((x) => x.r), ['12', '8', '12'], '14 выше диапазона превращается в 12');
+});
+
+test('первый раз — пустой вес и низ диапазона', () => {
+  const fly = { id: 'a10', name: 'Обратная бабочка', target_sets: 2, rep_min: 12, rep_max: 15 };
+  const sets = prefillSets(fly, suggest(fly, []));
+  assert.deepEqual(sets.map((x) => [x.w, x.r]), [['', '12'], ['', '12']]);
+});
+
+test('разгрузка доходит до полей: вес ниже, подходов меньше', () => {
+  const lat2 = { id: 'a6', name: 'Тяга', target_sets: 3, rep_min: 10, rep_max: 12, step: 5 };
+  const hist = [wk('2026-09-27', 'A', null, [ex('Тяга', [{ w: 50, r: 12 }, { w: 50, r: 12 }, { w: 50, r: 12 }])])];
+  const work = prefillSets(lat2, suggest(lat2, hist, { phase: 'deload' })).filter((x) => !x.warmup);
+  assert.equal(work.length, 2);
+  assert.equal(work[0].w, '45');
+});

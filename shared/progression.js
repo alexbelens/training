@@ -174,7 +174,8 @@ export function suggest(exercise, workouts, opts = {}) {
     return withWarmup({ ...withStep, w, reps: range.max, note: 'вес держим, растим только повторы', rule: 'hold', gap_days: gap });
   }
   if (closed) {
-    return withWarmup({ ...withStep, w: roundToStep(w + step, step), reps: range.min,
+    // новый вес — прошлые повторы к нему не относятся, начинаем с низа диапазона
+    return withWarmup({ ...withStep, prev_reps: [], w: roundToStep(w + step, step), reps: range.min,
       note: `${range.max} повторов закрыты во всех подходах — прибавляем, повторы падают к ${range.min}`, rule: 'up', gap_days: gap });
   }
   const left = range.max > range.min && bestReps ? ` (лучший подход был на ${bestReps})` : '';
@@ -241,4 +242,25 @@ export function nextDayType(workouts) {
     .sort((a, b) => String(a.date).localeCompare(String(b.date)) || a.id - b.id);
   if (ab.length === 0) return 'A';
   return ab[ab.length - 1].type === 'A' ? 'B' : 'A';
+}
+
+/**
+ * Что подставить в поля подходов для упражнения. Одна функция для экрана и тестов.
+ * - разминочная рампа идёт первой и помечена warmup;
+ * - рабочие подходы — рекомендованным весом;
+ * - повторы — прошлый результат по каждому подходу, зажатый в диапазон (14 при диапазоне 8–12 станет 12);
+ *   после прибавки или в первый раз — низ диапазона.
+ */
+export function prefillSets(item, s) {
+  if (!item || item.cardio) return [];
+  const range = repRange(item);
+  const n = s?.sets || Number(item.target_sets) || 3;
+  const clamp = (r) => Math.max(range.min, Math.min(range.max, Number(r) || range.min));
+  const prev = s && !s.first && Array.isArray(s.prev_reps) ? s.prev_reps.filter((x) => Number(x) > 0) : [];
+  const repsFor = (k) => (prev.length ? clamp(prev[k] ?? prev[prev.length - 1]) : range.min);
+  const weight = s && !s.first ? s.w : '';
+  const warm = (s && !s.first && Array.isArray(s.warmups) ? s.warmups : [])
+    .map((x) => ({ w: String(x.w), r: String(x.r), warmup: true }));
+  const work = Array.from({ length: n }, (_, k) => ({ w: weight === '' ? '' : String(weight), r: String(repsFor(k)) }));
+  return [...warm, ...work];
 }

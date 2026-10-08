@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
-import { suggest, tonnage, weightUnit } from '@shared/progression.js';
+import { suggest, tonnage, weightUnit, prefillSets } from '@shared/progression.js';
 import { DOW_SHORT, DOW_FULL, weeklyCount } from '@shared/schedule.js';
 import { machineStepFor } from '@shared/machine-types.js';
 import { Field, Confirm, fmtDate, today, useToast } from '../components/ui.jsx';
@@ -23,28 +23,11 @@ const hasData = (w) => !!w && (
 );
 
 function blankFromProgram(items, suggestions) {
-  return items.map((it) => {
-    const s = suggestions[it.id];
-    const n = it.cardio ? 0 : (s?.sets || it.target_sets || 3);
-    // Повторы подставляем фактом прошлой тренировки, а не целью: если в прошлый раз
-    // на этом весе было 8, в поле должно стоять 8, иначе легко сохранить то, чего не делал.
-    // Цель диапазона остаётся в подсказке над полями.
-    const prev = (s && !s.first && Array.isArray(s.prev_reps) ? s.prev_reps : []);
-    const fallback = s && !s.first ? (s.rep_min ?? s.reps ?? it.target_reps) : it.target_reps;
-    const repsFor = (k) => {
-      const v = prev.length ? (prev[k] ?? prev[prev.length - 1]) : fallback;
-      return v ? String(v) : '';
-    };
-    // Сначала разминочная рампа, потом рабочие подходы одним весом.
-    const warm = (s && !s.first && Array.isArray(s.warmups) ? s.warmups : [])
-      .map((x) => ({ w: String(x.w), r: String(x.r), warmup: true }));
-    const workSets = Array.from({ length: n }, (_, k) => ({ w: s && !s.first ? s.w : '', r: repsFor(k) }));
-    return {
-      program_id: it.id, name: it.name, done: false,
-      sets: it.cardio ? [] : [...warm, ...workSets],
-      duration: '',
-    };
-  });
+  return items.map((it) => ({
+    program_id: it.id, name: it.name, done: false,
+    sets: prefillSets(it, suggestions[it.id]),
+    duration: '',
+  }));
 }
 
 export default function Workout({ state, reload, setTab }) {
@@ -67,14 +50,14 @@ export default function Workout({ state, reload, setTab }) {
   const dayItems = program?.days?.[day] || [];
   const byType = state.machines_by_type || {};
   const suggestions = useMemo(
-    () => Object.fromEntries(dayItems.map((it) => [it.id, suggest(it, workouts, { adaptation: !!profile.adaptation_period, today: date, machineStep: machineStepFor(byType, it) })])),
+    () => Object.fromEntries(dayItems.map((it) => [it.id, suggest(it, workouts, { adaptation: !!profile.adaptation_period, today: date, phase: state.cycle?.phase, machineStep: machineStepFor(byType, it) })])),
     [dayItems, workouts, profile.adaptation_period, date, byType]
   );
   const perWeek = weeklyCount(profile);
 
   function start(d = date, type = day) {
     const items = program?.days?.[type] || [];
-    const sugg = Object.fromEntries(items.map((it) => [it.id, suggest(it, workouts, { adaptation: !!profile.adaptation_period, today: d, machineStep: machineStepFor(state.machines_by_type || {}, it) })]));
+    const sugg = Object.fromEntries(items.map((it) => [it.id, suggest(it, workouts, { adaptation: !!profile.adaptation_period, today: d, phase: state.cycle?.phase, machineStep: machineStepFor(state.machines_by_type || {}, it) })]));
     setEditing({ date: d, type, exercises: blankFromProgram(items, sugg), notes: '' });
     window.scrollTo(0, 0);
   }
