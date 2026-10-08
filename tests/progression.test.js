@@ -285,9 +285,9 @@ test('после прибавки повторы в полях падают к �
 
 test('без прибавки — прошлые повторы, зажатые в диапазон', () => {
   const bench2 = { id: 'a5', name: 'Жим', target_sets: 3, rep_min: 8, rep_max: 12, step: 5 };
-  const hist = [wk('2026-09-27', 'A', null, [ex('Жим', [{ w: 60, r: 12 }, { w: 60, r: 8 }, { w: 60, r: 14 }])])];
+  const hist = [wk('2026-09-27', 'A', null, [ex('Жим', [{ w: 60, r: 13 }, { w: 60, r: 8 }, { w: 60, r: 13 }])])];
   const work = prefillSets(bench2, suggest(bench2, hist)).filter((x) => !x.warmup);
-  assert.deepEqual(work.map((x) => x.r), ['12', '8', '12'], '14 выше диапазона превращается в 12');
+  assert.deepEqual(work.map((x) => x.r), ['12', '8', '12'], '13 выше диапазона превращается в 12');
 });
 
 test('первый раз — пустой вес и низ диапазона', () => {
@@ -302,4 +302,25 @@ test('разгрузка доходит до полей: вес ниже, под
   const work = prefillSets(lat2, suggest(lat2, hist, { phase: 'deload' })).filter((x) => !x.warmup);
   assert.equal(work.length, 2);
   assert.equal(work[0].w, '45');
+});
+
+test('последний подход сильно сверх верхней границы — прибавляем, даже если средний просел', () => {
+  const bench2 = { id: 'a5', name: 'Жим', target_sets: 3, rep_min: 8, rep_max: 12, step: 5 };
+  const hist = [wk('2026-09-27', 'A', null, [ex('Жим', [{ w: 60, r: 12 }, { w: 60, r: 8 }, { w: 60, r: 14 }])])];
+  const r = suggest(bench2, hist);
+  assert.equal(r.w, 65);
+  assert.equal(r.rule, 'up_last_set');
+  assert.match(r.note, /14 при цели 12/);
+});
+
+test('последний подход на 1 сверх — ещё не повод, держим вес', () => {
+  const bench2 = { id: 'a5', name: 'Жим', target_sets: 3, rep_min: 8, rep_max: 12, step: 5 };
+  const hist = [wk('2026-09-27', 'A', null, [ex('Жим', [{ w: 60, r: 12 }, { w: 60, r: 8 }, { w: 60, r: 13 }])])];
+  assert.equal(suggest(bench2, hist).rule, 'keep');
+});
+
+test('сильный последний подход не спасает, если подходов было меньше нужного', () => {
+  const bench2 = { id: 'a5', name: 'Жим', target_sets: 3, rep_min: 8, rep_max: 12, step: 5 };
+  const hist = [wk('2026-09-27', 'A', null, [ex('Жим', [{ w: 60, r: 8 }, { w: 60, r: 15 }])])];
+  assert.equal(suggest(bench2, hist).rule, 'keep');
 });

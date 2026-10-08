@@ -357,6 +357,7 @@ function Editor({ w, setW, state, program, suggestions, onMinimize, onDiscard, o
                   )}
                   {weightUnit(it).total && <div className="tiny accent">по {s.w} с каждой стороны, суммарно {s.w * 2} кг{s.warmup ? ` · разминка ${s.warmup} с каждой` : ''}</div>}
                   <div className="tiny muted">{s.note}</div>
+                  <div className="tiny muted">Последний рабочий подход — сколько сможешь, остальные — до {s.rep_max}.</div>
                 </span>
                 <button className="btn-sm" onClick={() => updSets(i, (sets) => {
                   const prev = Array.isArray(s.prev_reps) ? s.prev_reps : [];

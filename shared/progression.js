@@ -155,6 +155,11 @@ export function suggest(exercise, workouts, opts = {}) {
   // Двойная прогрессия: прибавляем, только когда верх диапазона закрыт во всех рабочих подходах.
   const work = workingSets(last.exercise.sets).filter((s) => Number(s.w) === w);
   const closed = work.length >= targetSets && work.every((s) => Number(s.r) >= range.max);
+  // Последний рабочий подход делается «сколько смогу». Если в нём на 2+ повтора больше верхней
+  // границы — запас силы есть, прибавляем, даже если средний подход просел (отдых, усталость).
+  const lastSet = work[work.length - 1];
+  const surplus = lastSet ? Number(lastSet.r) - range.max : 0;
+  const amrapUp = !closed && work.length >= targetSets && surplus >= 2;
   const bestReps = work.length ? Math.max(...work.map((s) => Number(s.r) || 0)) : 0;
 
   const prevReps = work.map((x) => Number(x.r) || 0).filter((n) => n > 0);
@@ -173,10 +178,13 @@ export function suggest(exercise, workouts, opts = {}) {
   if (exercise.no_progression) {
     return withWarmup({ ...withStep, w, reps: range.max, note: 'вес держим, растим только повторы', rule: 'hold', gap_days: gap });
   }
-  if (closed) {
+  if (closed || amrapUp) {
     // новый вес — прошлые повторы к нему не относятся, начинаем с низа диапазона
+    const why = closed
+      ? `${range.max} повторов закрыты во всех подходах`
+      : `в последнем подходе ${lastSet.r} при цели ${range.max} — запас есть`;
     return withWarmup({ ...withStep, prev_reps: [], w: roundToStep(w + step, step), reps: range.min,
-      note: `${range.max} повторов закрыты во всех подходах — прибавляем, повторы падают к ${range.min}`, rule: 'up', gap_days: gap });
+      note: `${why} — прибавляем, повторы падают к ${range.min}`, rule: closed ? 'up' : 'up_last_set', gap_days: gap });
   }
   const left = range.max > range.min && bestReps ? ` (лучший подход был на ${bestReps})` : '';
   return withWarmup({ ...withStep, w, reps: range.max,
