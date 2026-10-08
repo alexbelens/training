@@ -283,11 +283,11 @@ test('после прибавки повторы в полях падают к �
   assert.deepEqual(work.map((x) => [x.w, x.r]), [['55', '10'], ['55', '10'], ['55', '10']]);
 });
 
-test('без прибавки — прошлые повторы, зажатые в диапазон', () => {
+test('без прибавки — план тянет вверх: прошлое плюс два, в пределах диапазона', () => {
   const bench2 = { id: 'a5', name: 'Жим', target_sets: 3, rep_min: 8, rep_max: 12, step: 5 };
-  const hist = [wk('2026-09-27', 'A', null, [ex('Жим', [{ w: 60, r: 13 }, { w: 60, r: 8 }, { w: 60, r: 13 }])])];
+  const hist = [wk('2026-09-19', 'A', null, [ex('Жим', [{ w: 60, r: 12 }, { w: 60, r: 8 }, { w: 60, r: 7 }])])];
   const work = prefillSets(bench2, suggest(bench2, hist)).filter((x) => !x.warmup);
-  assert.deepEqual(work.map((x) => x.r), ['12', '8', '12'], '13 выше диапазона превращается в 12');
+  assert.deepEqual(work.map((x) => x.r), ['12', '10', '9'], 'слабые подходы получают задание +2, сильный упирается в 12');
 });
 
 test('первый раз — пустой вес и низ диапазона', () => {
@@ -323,4 +323,12 @@ test('сильный последний подход не спасает, есл
   const bench2 = { id: 'a5', name: 'Жим', target_sets: 3, rep_min: 8, rep_max: 12, step: 5 };
   const hist = [wk('2026-09-27', 'A', null, [ex('Жим', [{ w: 60, r: 8 }, { w: 60, r: 15 }])])];
   assert.equal(suggest(bench2, hist).rule, 'keep');
+});
+
+test('после паузы план не надбавляет повторы — вес и так снижен', () => {
+  const lat2 = { id: 'a6', name: 'Тяга', target_sets: 3, rep_min: 10, rep_max: 12, step: 5 };
+  const hist = [wk('2026-08-01', 'A', null, [ex('Тяга', [{ w: 50, r: 10 }, { w: 50, r: 10 }, { w: 50, r: 10 }])])];
+  const s = suggest(lat2, hist, { today: '2026-08-30' });
+  assert.equal(s.rule, 'layoff');
+  assert.deepEqual(prefillSets(lat2, s).filter((x) => !x.warmup).map((x) => x.r), ['10', '10', '10']);
 });

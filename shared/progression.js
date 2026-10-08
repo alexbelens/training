@@ -253,19 +253,23 @@ export function nextDayType(workouts) {
 }
 
 /**
- * Что подставить в поля подходов для упражнения. Одна функция для экрана и тестов.
+ * Что подставить в поля подходов — это ПЛАН на сегодня, человек воспринимает его как задание.
  * - разминочная рампа идёт первой и помечена warmup;
  * - рабочие подходы — рекомендованным весом;
- * - повторы — прошлый результат по каждому подходу, зажатый в диапазон (14 при диапазоне 8–12 станет 12);
- *   после прибавки или в первый раз — низ диапазона.
+ * - вес тот же — прошлый результат подхода плюс 2 повтора, в пределах диапазона: план всегда тянет
+ *   вверх, иначе слабый подход (8 из 12) копировался бы раз за разом;
+ * - после прибавки, в первый раз — низ диапазона;
+ * - после снижения (пауза, разгрузка) — прошлый результат без надбавки.
  */
+export const REPS_PUSH = 2;
 export function prefillSets(item, s) {
   if (!item || item.cardio) return [];
   const range = repRange(item);
   const n = s?.sets || Number(item.target_sets) || 3;
   const clamp = (r) => Math.max(range.min, Math.min(range.max, Number(r) || range.min));
   const prev = s && !s.first && Array.isArray(s.prev_reps) ? s.prev_reps.filter((x) => Number(x) > 0) : [];
-  const repsFor = (k) => (prev.length ? clamp(prev[k] ?? prev[prev.length - 1]) : range.min);
+  const push = s && (s.rule === 'keep' || s.rule === 'hold') ? REPS_PUSH : 0;
+  const repsFor = (k) => (prev.length ? clamp(Number(prev[k] ?? prev[prev.length - 1]) + push) : range.min);
   const weight = s && !s.first ? s.w : '';
   const warm = (s && !s.first && Array.isArray(s.warmups) ? s.warmups : [])
     .map((x) => ({ w: String(x.w), r: String(x.r), warmup: true }));
